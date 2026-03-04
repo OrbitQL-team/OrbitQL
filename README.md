@@ -216,7 +216,7 @@ This engine enables:
 | Conditional IF logic    | ✅            | ❌                      |
 | Dynamic joins           | ✅            | Limited                |
 | SQL-level enforcement   | ✅            | ✅                      |
-| GUI / metadata tooling  | ❌            | ✅                      |
+| GUI / metadata tooling  | ⚠️ Coming in the future as SaaS          | ✅                      |
 
 ---
 
