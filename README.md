@@ -244,6 +244,84 @@ Security depends on:
 
 ---
 
+## 👥 Who We Are
+
+We are a small team of three:
+
+Two software engineers focused on backend architecture, database systems, and API infrastructure.
+
+One commercial specialist with a university degree (Laurea) focused on product strategy, business development, and market positioning.
+
+Our combined goal is to build tools that simplify complex backend problems while remaining secure, scalable, and easy to integrate into real-world systems.
+
+## 🎯 What We Built Cerberus For
+
+We created Cerberus to address recurring problems we encountered while building APIs and backend systems:
+
+* Authorization logic scattered across application code
+
+* Difficulty enforcing complex business rules at the database level
+
+* Lack of payload-aware authorization in most RBAC/RLS systems
+
+* Fragile API architectures where rules become hard to maintain
+
+Cerberus aims to solve these issues by providing a policy-driven SQL handler that centralizes authorization and validation logic in a structured, declarative format.
+
+This approach makes APIs:
+
+* More stable – rules are enforced consistently
+
+* Safer – security logic is compiled into SQL
+
+* Easier to modify – policies can be changed without rewriting application logic
+
+* More maintainable – authorization rules live in one place
+
+Our goal is to make complex API backends easier to design, audit, and evolve.
+
+## 🔮 Future Plans
+
+We plan to evolve Cerberus beyond a standalone engine and build a SaaS platform around it.
+
+The SaaS platform will aim to provide:
+
+* A policy management interface
+
+* API integration tooling
+
+* authorization visualization
+
+* query and rule debugging tools
+
+We plan to offer multiple subscription tiers, including:
+
+* Free plan for small projects and experimentation
+
+* Developer plans for startups and indie builders
+
+* Advanced plans for production SaaS applications
+
+## 💬 Community & Feedback
+
+Cerberus is still evolving, and community input is extremely valuable to us.
+
+We welcome feedback on:
+
+* Architecture decisions
+
+* Policy DSL design
+
+* Real-world use cases
+
+* Missing features
+
+If you use Cerberus or experiment with it, we would love to hear what you think and how it could improve your workflow.
+
+Your feedback will help shape the future direction of the project.
+
+---
+
 ## 📄 License
 
 Specify your license here.
