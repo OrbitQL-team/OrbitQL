@@ -324,4 +324,4 @@ Your feedback will help shape the future direction of the project.
 
 ## 📄 License
 
-Specify your license here.
+[License](https://github.com/Zucchy00/Cerberus/blob/main/LICENSE)
