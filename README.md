@@ -1,8 +1,8 @@
-# Cerberus
+# Polaris
 
-# Policy-Driven SQL Handler
+## Policy-Driven SQL Handler
 
-A declarative, database-level authorization and query engine that combines:
+**Polaris** is a declarative, database-level authorization and query engine built on **Node.js**. It combines:
 
 * Role-based access control
 * Field-level permissions
@@ -12,7 +12,7 @@ A declarative, database-level authorization and query engine that combines:
 * Dynamic joins
 * Workflow/state transition enforcement
 
-This project compiles structured request definitions into **safe SQL queries**, enforcing complex business rules directly at the database level.
+Polaris compiles structured request definitions into **safe SQL queries**, enforcing complex business rules directly at the database level.
 
 ---
 
@@ -20,9 +20,7 @@ This project compiles structured request definitions into **safe SQL queries**, 
 
 ### 1. Declarative Authorization DSL
 
-Define permissions using structured JSON instead of imperative code.
-
-Supports:
+Define permissions using structured JSON instead of imperative code. Supports:
 
 * `AND` / `OR`
 * Conditional `IF / ELSE`
@@ -56,9 +54,7 @@ Roles can define:
 
 ### 3. Payload-Aware Validation
 
-Unlike traditional RLS systems, this engine can validate **incoming mutation data**.
-
-Example:
+Unlike traditional RLS systems, Polaris can validate **incoming mutation data**:
 
 ```ts
 {
@@ -83,13 +79,13 @@ Enables rules such as:
 
 ### 4. State Transition Enforcement
 
-Compare:
+Polaris compares:
 
 * Existing row values
 * Incoming mutation payload
 * User/session data
 
-Example use cases:
+Use cases:
 
 * Workflow progression validation
 * Attendance state changes
@@ -120,7 +116,7 @@ Supports structured query definitions:
 }
 ```
 
-Generates SQL similar to:
+Generates SQL:
 
 ```sql
 SELECT guest_code.*, users.email
@@ -135,7 +131,7 @@ All joins and filters are validated and secured.
 
 ### 6. Row-Level Enforcement in SQL
 
-Rules compile into SQL `WHERE` clauses and joins:
+Rules compile directly into SQL `WHERE` clauses and joins:
 
 * No post-filtering
 * No in-memory filtering
@@ -152,9 +148,7 @@ Define which fields can be:
 * Inserted
 * Updated
 
-Per role, per operation.
-
-Example:
+Per role, per operation:
 
 ```ts
 allowed: {
@@ -178,7 +172,7 @@ SQL Query Builder
 Database
 ```
 
-The handler:
+Handler steps:
 
 1. Parses structured request input
 2. Applies role-based policies
@@ -189,7 +183,7 @@ The handler:
 
 ---
 
-## 🚀 Why This Exists
+## 🚀 Why Polaris Exists
 
 Traditional solutions:
 
@@ -197,7 +191,7 @@ Traditional solutions:
 * GraphQL permission engines → Limited conditional logic
 * Middleware RBAC → Often evaluated outside SQL
 
-This engine enables:
+Polaris enables:
 
 * Payload-aware authorization
 * Business workflow validation
@@ -209,28 +203,25 @@ This engine enables:
 
 ## ⚖️ Comparison to GraphQL Engines (e.g., Hasura)
 
-| Capability              | This Project | Typical GraphQL Engine |
-| ----------------------- | ------------ | ---------------------- |
-| Payload-aware rules     | ✅            | ❌                      |
-| State transition checks | ✅            | ❌                      |
-| Conditional IF logic    | ✅            | ❌                      |
-| Dynamic joins           | ✅            | Limited                |
-| SQL-level enforcement   | ✅            | ✅                      |
-| GUI / metadata tooling  | ⚠️ Coming in the future as SaaS          | ✅                      |
+| Capability              | Polaris                  | Typical GraphQL Engine |
+| ----------------------- | ------------------------ | ---------------------- |
+| Payload-aware rules     | ✅                        | ❌                      |
+| State transition checks | ✅                        | ❌                      |
+| Conditional IF logic    | ✅                        | ❌                      |
+| Dynamic joins           | ✅                        | Limited                |
+| SQL-level enforcement   | ✅                        | ✅                      |
+| GUI / metadata tooling  | ⚠️ Coming in future SaaS | ✅                      |
 
 ---
 
 ## 🛡 Security Model
 
-* All queries are compiled through policy rules.
-* Field access is explicitly controlled.
-* Row filters are injected at SQL level.
-* Payload comparisons prevent illegal state transitions.
+* All queries are compiled through policy rules
+* Field access is explicitly controlled
+* Row filters are injected at SQL level
+* Payload comparisons prevent illegal state transitions
 
-Security depends on:
-
-* All database access going through the handler.
-* No raw SQL bypass routes.
+Security relies on **all database access going through the handler** and no raw SQL bypass routes.
 
 ---
 
@@ -248,77 +239,60 @@ Security depends on:
 
 We are a small team of three:
 
-Two software engineers focused on backend architecture, database systems, and API infrastructure.
+* Two software engineers focused on backend architecture, database systems, and API infrastructure
+* One commercial specialist focused on product strategy, business development, and market positioning
 
-One commercial specialist with a university degree (Laurea) focused on product strategy, business development, and market positioning.
+Our goal is to simplify complex backend problems while remaining secure, scalable, and easy to integrate.
 
-Our combined goal is to build tools that simplify complex backend problems while remaining secure, scalable, and easy to integrate into real-world systems.
+---
 
-## 🎯 What We Built Cerberus For
+## 🎯 What We Built Polaris For
 
-We created Cerberus to address recurring problems we encountered while building APIs and backend systems:
+Polaris addresses recurring problems in API development:
 
-* Authorization logic scattered across application code
-
+* Scattered authorization logic across application code
 * Difficulty enforcing complex business rules at the database level
-
 * Lack of payload-aware authorization in most RBAC/RLS systems
+* Fragile APIs with hard-to-maintain rules
 
-* Fragile API architectures where rules become hard to maintain
+Polaris centralizes **authorization and validation logic** in a declarative format, making APIs:
 
-Cerberus aims to solve these issues by providing a policy-driven SQL handler that centralizes authorization and validation logic in a structured, declarative format.
+* More stable
+* Safer
+* Easier to modify
+* More maintainable
 
-This approach makes APIs:
-
-* More stable – rules are enforced consistently
-
-* Safer – security logic is compiled into SQL
-
-* Easier to modify – policies can be changed without rewriting application logic
-
-* More maintainable – authorization rules live in one place
-
-Our goal is to make complex API backends easier to design, audit, and evolve.
+---
 
 ## 🔮 Future Plans
 
-We plan to evolve Cerberus beyond a standalone engine and build a SaaS platform around it.
+Polaris will evolve into a **SaaS platform** with:
 
-The SaaS platform will aim to provide:
-
-* A policy management interface
-
+* Policy management interface
 * API integration tooling
+* Authorization visualization
+* Query and rule debugging tools
 
-* authorization visualization
+**Subscription model:**
 
-* query and rule debugging tools
-
-We plan to offer multiple subscription tiers, including:
-
-* Free plan for small projects and experimentation
-
+* Free tier for experimentation
 * Developer plans for startups and indie builders
-
 * Advanced plans for production SaaS applications
+
+**Open-source code:** Polaris is fully open source and self-hostable. Users may modify and host the project freely, but it **cannot be used to create a commercial SaaS replicating Polaris functionality**.
+
+---
 
 ## 💬 Community & Feedback
 
-Cerberus is still evolving, and community input is extremely valuable to us.
-
-We welcome feedback on:
+We value feedback on:
 
 * Architecture decisions
-
 * Policy DSL design
-
 * Real-world use cases
-
 * Missing features
 
-If you use Cerberus or experiment with it, we would love to hear what you think and how it could improve your workflow.
-
-Your feedback will help shape the future direction of the project.
+Your input will help shape Polaris’s future.
 
 ---
 
