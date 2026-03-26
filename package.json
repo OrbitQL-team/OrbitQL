@@ -1,0 +1,43 @@
+{
+  "name": "@polaris/core",
+  "version": "0.0.1",
+  "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zucchy00/Polaris.git"
+  },
+  "keywords": [
+    "api",
+    "backend",
+    "query-engine",
+    "data-api",
+    "api-builder",
+    "graphql-alternative",
+    "declarative-api",
+    "query-builder",
+    "aggregation",
+    "group-by",
+    "joins",
+    "filtering",
+    "analytics",
+    "reporting",
+    "typescript",
+    "nodejs",
+    "dsl",
+    "data-platform",
+    "headless-api"
+  ],
+  "author": "Zucchelli Daniele",
+  "license": "SEE LICENSE IN 'LICENSE' file",
+  "bugs": {
+    "url": "https://github.com/Zucchy00/Polaris/issues"
+  },
+  "homepage": "https://github.com/Zucchy00/Polaris#readme",
+  "dependencies": {
+    "drizzle-orm": "^0.45.1"
+  }
+}
