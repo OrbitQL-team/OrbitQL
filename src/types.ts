@@ -145,9 +145,9 @@ export type StructuredQuery = {
 };
 
 export type SimpleCondition = {
-  type?: "and" | "or";
   field?: string;
   operator?: SafeOperator;
+  left_value?: any;
   value?: any;
   conditions?: WhereCondition[];
 };
@@ -159,10 +159,30 @@ export type Join = {
 };
 
 // Nested AND/OR conditions
-export type NestedCondition = {
-  type: "and" | "or";
-  conditions: (WhereCondition | SubqueryCondition)[];
+type AndCondition = {
+  and: (WhereCondition | SubqueryCondition)[];
+  or?: never;
+  if?: never;
 };
+
+type OrCondition = {
+  or: (WhereCondition | SubqueryCondition)[];
+  and?: never;
+  if?: never;
+};
+
+type IfCondition = {
+  if: {
+    when: WhereCondition | SubqueryCondition;
+    do?: WhereCondition | SubqueryCondition;
+    else?: WhereCondition | SubqueryCondition;
+  };
+  and?: never;
+  or?: never;
+};
+
+export type NestedCondition = AndCondition | OrCondition | IfCondition;
+
 // A WhereCondition can be simple or nested
 export type WhereCondition = SimpleCondition | NestedCondition;
 
