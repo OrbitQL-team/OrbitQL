@@ -1,0 +1,271 @@
+import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure } from "./types.ts";
+
+export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
+  const aliased: Record<string, any> = {};
+  for (const [key, col] of Object.entries(fields)) {
+    // key is already `tablename.field`
+    aliased[key] = col;
+  }
+  return aliased;
+}
+
+export function resolve_fields(
+    structure: Structure,
+    fields: any,
+    type: string,
+    role: string,
+    default_table: string,
+    tableMap: Record<string, Record<string, any>>
+) {
+    const allowed_fields: Record<string, any> = {};
+    if (!fields || (typeof fields !== "object" && !Array.isArray(fields))) return allowed_fields;
+
+    const keys = Array.isArray(fields) ? fields : Object.keys(fields);
+
+    // Handle ["*"] wildcard
+    if (keys.length === 1 && keys[0] === "*") {
+        // expand to all allowed fields of the default_table
+        const tableStruct = structure[default_table];
+        if (!tableStruct) throw new Error(`Unknown table '${default_table}'`);
+
+        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        if (!endpoint) throw new Error(`${type} not allowed on ${default_table}`);
+
+        const rolePermissions = endpoint[role];
+        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
+            return allowed_fields;
+        }
+
+        const allowed = rolePermissions.allowed ?? [];
+        const disallowed = rolePermissions.disallowed ?? [];
+
+        for (const field of Object.keys(tableMap[default_table])) {
+            if (!resolve_allowed_fields(field, allowed, disallowed)) {
+                console.log("TABLE: ", default_table)
+                console.log("REMOVED: ",field)
+                continue
+            };
+            allowed_fields[`${default_table}.${field}`] = tableMap[default_table][field];
+        }
+
+        return allowed_fields;
+    }
+
+    for (const entry of keys) {
+        let table: string;
+        let field: string;
+
+        if (entry.includes(".")) [table, field] = entry.split(".");
+        else {
+            table = default_table;
+            field = entry;
+        }
+
+        const tableStruct = structure[table];
+        if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+
+        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
+
+        const rolePermissions = endpoint[role];
+        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
+            continue;
+        }
+
+        const allowed = rolePermissions.allowed ?? [];
+        const disallowed = rolePermissions.disallowed ?? [];
+        if(field == "*") {
+            for (const current_field of Object.keys(tableMap[table])) {
+                if (!resolve_allowed_fields(current_field, allowed, disallowed)) {
+                    console.log("TABLE: ", table)
+                    console.log("REMOVED: ",current_field)
+                    continue
+                };
+                allowed_fields[`${table}.${current_field}`] = tableMap[table][current_field];
+            }
+        }else {
+            if (!resolve_allowed_fields(field, allowed, disallowed)) {
+                console.log("TABLE: ", table)
+                console.log("REMOVED: ",field)
+                continue
+            };
+            if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
+            allowed_fields[`${table}.${field}`] = tableMap[table][field];
+        }
+    }
+
+    return allowed_fields;
+}
+
+
+export function resolve_data(
+    structure: Structure,
+    fields: any,
+    type: string,
+    role: string,
+    default_table: string,
+    tableMap: Record<string, Record<string, any>>
+) {
+    const allowed_fields: Record<string, any> = {};
+
+    if (!fields || typeof fields !== "object") {
+        return allowed_fields;
+    }
+
+    for (const [entry, value] of Object.entries(fields)) {
+        let table: string;
+        let field: string;
+
+        if (entry.includes(".")) {
+            [table, field] = entry.split(".");
+        } else {
+            table = default_table;
+            field = entry;
+        }
+
+        const tableStruct = structure[table];
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
+
+        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
+        }
+
+        const rolePermissions = endpoint[role];
+        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
+            continue;
+        }
+
+        const allowed = rolePermissions.allowed ?? [];
+        const disallowed = rolePermissions.disallowed ?? [];
+
+        // Authorization check (normalized field)
+        if (!resolve_allowed_fields(field, allowed, disallowed)) {
+            console.log("TABLE: ", table)
+            console.log("REMOVED: ",field)
+            continue
+        };
+
+        // Schema existence check
+        if (!tableMap[table] || !(field in tableMap[table])) {
+            throw new Error(`Field '${field}' does not exist on table '${table}'`);
+        }
+
+        // IMPORTANT PART:
+        // Preserve original key for UPDATE
+        allowed_fields[entry] = value;
+    }
+
+    return allowed_fields;
+}
+
+export function resolve_allowed_fields(field:string, allowed:FieldPermission, disallowed:string[]):boolean {
+    if (disallowed.includes(field)) return false;
+
+    // Extract column name without prefix
+    const col = field.includes(".") ? field.split(".")[1] : field;
+
+    if(Array.isArray(allowed)) {
+        for (const rule of allowed) {
+            if (rule === "*") return true;
+
+            // Legacy simple allowed list
+            if (rule === field || rule === col) return true;
+        }
+    }else if (typeof allowed === "object") {
+        if (allowed.field === "*") return true;
+            else if(Array.isArray(allowed.field)) {
+        if(allowed.field.includes("*")) return true
+            return allowed.field.includes(field) || allowed.field.includes(col)
+        }else return allowed.field === col || allowed.field === field
+    }
+
+    return false;
+}
+
+export function stripPrefixes(input: any): any {
+    // Handle arrays
+    if (Array.isArray(input)) {
+        return input.map(stripPrefixes);
+    }
+
+    // Handle objects (but not null)
+    if (input !== null && typeof input === "object") {
+        const cleaned: Record<string, any> = {};
+
+        for (const [key, value] of Object.entries(input)) {
+            let cleanKey = key.includes(".") ? key.split(".").pop()! : key;
+            if (Object.prototype.hasOwnProperty.call(cleaned, cleanKey)) {
+                cleanKey = key.includes(".") ? key.replace(".", "_") : `${key}_${value}`;
+            }
+            cleaned[cleanKey] = stripPrefixes(value);
+        }
+
+        return cleaned;
+    }
+
+    // Primitives (string, number, boolean, null, undefined)
+    return input;
+}
+
+export function resolveCustomValue(value: any, user: any, query: StructuredQuery): any {
+    if (!value || typeof value !== "string") return value;
+
+    // $user.X → from user object
+    let match = value.match(/^\$user\.(\w+)$/);
+    if (match && user) return user[match[1]];
+
+    // $data.X → from query.data
+    match = value.match(/^\$data\.(.+)$/);
+    if (match && query?.data) {
+        const key = match[1]; // e.g., "attendances.type"
+        // exact match in data
+        if (key in query.data) return query.data[key];
+        // fallback: try dot-splitting (e.g., 'attendances.type' → query.data['attendances']['type'])
+        const parts = key.split(".");
+        let val: any = query.data;
+        for (const part of parts) {
+            if (val && part in val) val = val[part];
+            else return null; // not found, return placeholder
+        }
+        return val;
+    }
+
+    return value;
+}
+
+export function injectDynamicValues(
+    cond: WhereCondition | SubqueryCondition,
+    user: any,
+    query: StructuredQuery,
+    safe?: Record<string, any>
+): WhereCondition | SubqueryCondition {
+    if ("conditions" in cond && Array.isArray(cond.conditions)) {
+        const newCond = { ...cond };
+        newCond.conditions = cond.conditions.map(c =>
+            injectDynamicValues(c, user, query, safe) as WhereCondition
+        );
+        return newCond;
+    } else if ("field" in cond && cond.field) {
+        // resolve placeholder
+        const resolvedValue = resolveCustomValue(cond.value, user, query)
+
+        // if safe object is provided, also populate it
+        if (safe) safe[cond.field] = resolvedValue;
+
+        // handle subqueries
+        if (typeof cond.value === "object" && "select" in cond.value && cond.value.where) {
+            const newCond = { ...cond, value: { ...cond.value } };
+            newCond.value.where = cond.value.where.map((c: WhereCondition) =>
+                injectDynamicValues(c, user, query, safe) as WhereCondition
+            );
+            return newCond;
+        }
+
+        return { ...cond, value: resolvedValue };
+    }
+
+    return cond;
+}
