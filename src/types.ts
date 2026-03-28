@@ -1,7 +1,7 @@
-import { GelDatabase, GelTable, TableConfig as GelTableConfig } from "drizzle-orm/gel-core";
+import { GelDatabase } from "drizzle-orm/gel-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase, PgTable, TableConfig as PgTableConfig } from "drizzle-orm/pg-core";
+import { PgDatabase, TableConfig as PgTableConfig } from "drizzle-orm/pg-core";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -29,7 +29,7 @@ import { MySqlRemoteDatabase } from "drizzle-orm/mysql-proxy";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import { ExpoSQLiteDatabase } from "drizzle-orm/expo-sqlite";
-import { MySqlTable, MySqlDatabase, TableConfig as MySqlTableConfig } from "drizzle-orm/mysql-core";
+import { MySqlDatabase } from "drizzle-orm/mysql-core";
 
 /* -------------------------------------------------------------------------- */
 /*                               DATABASE TYPES                               */

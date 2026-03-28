@@ -46,7 +46,7 @@ const structure: Record<string, TableStructure> = {
                                 value: '$user.id'
                             }
                         }, 
-                    disallowed: ["id", "have_access", "admin", "organization_id"]
+                    disallowed: ["id", "have_access"]
                 },
             },
             { 
@@ -76,14 +76,21 @@ const local_user = {
 }
 
 describe("build_query result", () => {
-  it("should return at least one row", async () => {
+  it("should return at least one row and measure execution time", async () => {
+    const start = Date.now(); // ⏱ start timer
+
     const built_query = await build_query(db, query, local_user, "user", structure);
     const result = await built_query.execute();
 
-    // If result is an object with rows, adjust here:
+    const end = Date.now(); // ⏱ end timer
+    const duration = end - start;
+
+
+    // Handle both array or object with rows
     const rows = Array.isArray(result) ? result : result.rows;
 
     console.log(rows);
+    console.log(`Query executed in ${duration} ms`);
 
     // Assert that there is at least one row
     expect(rows.length).toBeGreaterThan(0);

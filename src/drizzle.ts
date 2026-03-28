@@ -10,7 +10,7 @@ import {
   desc,
   asc
 } from "drizzle-orm";
-import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, TableStructure, Endpoint } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint } from "./types.ts";
 import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
 import build_query from "./index.ts";
 
