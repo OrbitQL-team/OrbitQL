@@ -4,7 +4,8 @@
   "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
   "main": "src/index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "repository": {
     "type": "git",
@@ -37,7 +38,13 @@
     "url": "https://github.com/Zucchy00/Polaris/issues"
   },
   "homepage": "https://github.com/Zucchy00/Polaris#readme",
-  "dependencies": {
-    "drizzle-orm": "^0.45.1"
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "better-sqlite3": "^12.8.0",
+    "drizzle-orm": "^0.45.2",
+    "mysql2": "^3.20.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   }
 }

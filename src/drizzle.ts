@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm";
 import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, TableStructure, Endpoint } from "./types.ts";
 import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
-import { buildDrizzleQuery } from "./index.ts";
+import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
   BUILD JOIN
@@ -309,8 +309,8 @@ export async function run_after(db:Database, query:StructuredQuery, user:any, ot
     for(let after_query of query.after) {
       let returned_query: { execute: () => Promise<any> };
       try {
-        // await here because buildDrizzleQuery returns a Promise
-        returned_query = await buildDrizzleQuery(db, after_query, user, role, structure);
+        // await here because build_query returns a Promise
+        returned_query = await build_query(db, after_query, user, role, structure);
       } catch (e) {
         console.error("Error building query:", e);
         continue;
@@ -340,7 +340,7 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   // Start empty SQL object
   const need_table:boolean = has_field_or_col_attribute(where_condtion)
   
-  let check_query:any = sql`COALESCE(MAX(CASE WHEN`.append(where).append(sql`THEN 1 ELSE 0 END ), 0) AS RESULT`);
+  let check_query:any = sql`COALESCE(MAX(CASE WHEN`.append(where).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
 
   const from_table = need_table ? default_table : sql`(select 1) AS t`
 

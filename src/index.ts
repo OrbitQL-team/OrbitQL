@@ -5,7 +5,7 @@ import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_
 /*───────────────────────────────────────────────
   MAIN QUERY BUILDER
 ───────────────────────────────────────────────*/
-export async function buildDrizzleQuery(db: Database, query: StructuredQuery, user: any, role:string, structure: Structure) {
+export default async function build_query(db: Database, query: StructuredQuery, user: any, role:string, structure: Structure) {
   const tableName = query.table;
   const tableStruct = structure[tableName];
   if (!tableStruct) throw new Error(`Table ${tableName} not found`);
@@ -55,7 +55,7 @@ export async function buildDrizzleQuery(db: Database, query: StructuredQuery, us
 
   if (combinedWhere && typeof allowed != 'string' && !Array.isArray(allowed)) {
     const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, query, tableStruct.table)
-    
+
     if(!has_been_accepted) throw new Error("Not allowed")
   }
 

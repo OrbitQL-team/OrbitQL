@@ -88,7 +88,14 @@ export type Endpoint = {
   type: EndpointType;
   order_by?: string[];
   direction?: "asc" | "desc";
-  [role: string]: RolePermissions | string[] | "asc" | "desc" | EndpointType | undefined;
+  [role: string]:
+    | RolePermissions
+    | typeof NONE
+    | string[]
+    | "asc"
+    | "desc"
+    | EndpointType
+    | undefined;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -97,7 +104,7 @@ export type Endpoint = {
 
 export type RolePermissions = {
   allowed: FieldPermission;
-  disallowed: string[];
+  disallowed?: string[];
 };
 
 export type FieldPermission =
