@@ -269,3 +269,11 @@ export function injectDynamicValues(
 
     return cond;
 }
+
+export function extractTableMap<T extends { table: any }>(
+  structure: Record<string, T>
+): Record<string, T["table"]> {
+  return Object.fromEntries(
+    Object.entries(structure).map(([key, value]) => [key, value.table])
+  );
+}

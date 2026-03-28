@@ -6,10 +6,12 @@ import {
   isNotNull,
   exists,
   between,
-  type SQLWrapper
+  type SQLWrapper,
+  desc,
+  asc
 } from "drizzle-orm";
-import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure } from "./types.ts";
-import { injectDynamicValues, resolveCustomValue } from "./rbac";
+import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, TableStructure, Endpoint } from "./types.ts";
+import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
 import { buildDrizzleQuery } from "./index.ts";
 
 /*───────────────────────────────────────────────
@@ -298,15 +300,17 @@ export function buildAclWhere(allowed: FieldPermission, user: any, query:Structu
   return aclWhere;
 }
 
-
-export async function run_after(db:Database, query:StructuredQuery, user:any, others:any, role:string, structure: Structure, is_recursived:boolean) {
-  if(query.after && Array.isArray(query.after) && query.after.length > 0 && !is_recursived) {
+/*───────────────────────────────────────────────
+  AFTER ROWS EXECUTIONS
+───────────────────────────────────────────────*/
+export async function run_after(db:Database, query:StructuredQuery, user:any, others:any, role:string, structure: Structure) {
+  if(query.after && Array.isArray(query.after) && query.after.length > 0) {
     let afterQueries:any[] = []
     for(let after_query of query.after) {
       let returned_query: { execute: () => Promise<any> };
       try {
         // await here because buildDrizzleQuery returns a Promise
-        returned_query = await buildDrizzleQuery(db, after_query, user, role, structure, true);
+        returned_query = await buildDrizzleQuery(db, after_query, user, role, structure);
       } catch (e) {
         console.error("Error building query:", e);
         continue;
@@ -327,6 +331,9 @@ export async function run_after(db:Database, query:StructuredQuery, user:any, ot
   return others
 }
 
+/*───────────────────────────────────────────────
+  IF CONDITION
+───────────────────────────────────────────────*/
 export async function if_condition(db:Database, where_condtion:WhereCondition, table_map:any, user:any, query:StructuredQuery, default_table:any):Promise<boolean> {
   let where = await buildWhere(db, where_condtion, table_map, user, query, default_table)
 
@@ -354,6 +361,9 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   return Boolean(result);
 }
 
+/*───────────────────────────────────────────────
+  CHECKS FUNCTIONS
+───────────────────────────────────────────────*/
 export function has_field_or_col_attribute(
   input: any,
   insideFrom: boolean = false
@@ -391,4 +401,194 @@ export function is_allowed_empty(allowed: FieldPermission) {
     return is_allowed_empty(allowed.field)
   }
   return false
+}
+
+
+/*───────────────────────────────────────────────
+  ENDPOINT METHODS
+───────────────────────────────────────────────*/
+export async function get_method(db: Database, query: StructuredQuery, user:string, structure:Structure, endpoint:Endpoint, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+  const q = db.select(selected_data_fields).from(tableStruct.table);
+
+  if (query.join) await buildJoin(db, q, query.join, tableMap, user, query, tableStruct.table);
+
+  if (built_where) q.where(built_where);
+
+  if (query.group_by) {
+    q.groupBy(
+      ...query.group_by.map((f:string) => {
+        const [tbl, col] = f.includes(".") ? f.split(".") : [tableName, f];
+        return tableMap[tbl][col];
+      })
+    );
+  }
+
+  const orderByFields =
+    query.order_by ??
+    endpoint?.order_by ??
+    [];
+
+  // Resolve default direction
+  const defaultDirection =
+    query.direction ??
+    endpoint?.direction ??
+    "ASC";
+
+  if (orderByFields.length > 0) {
+    q.orderBy(
+      ...orderByFields.map((f: string) => {
+        // Allow "column DESC" syntax
+        const parts = f.trim().split(/\s+/);
+        const columnPart = parts[0];
+        const dir = (parts[1] ?? defaultDirection).toUpperCase();
+
+        // Resolve table + column
+        const [tbl, col] = columnPart.includes(".")
+          ? columnPart.split(".")
+          : [tableName, columnPart];
+
+        if (!tableMap[tbl]?.[col]) {
+          throw new Error(`Invalid order_by column: ${tbl}.${col}`);
+        }
+
+        return dir === "DESC"
+          ? desc(tableMap[tbl][col])
+          : asc(tableMap[tbl][col]);
+      })
+    );
+  }
+
+  if(limit != null) q.limit(limit)
+
+  console.log(q.toSQL().sql, q.toSQL().params)
+  return {
+    execute: async () => {
+      const rows = await q.execute();
+
+      // Only run `after` if defined
+      if (query.after && query.after.length > 0) {
+        return await run_after(db, query, user, { rows }, role, structure);
+      }
+
+      return rows;
+    }
+  };
+}
+
+export async function put_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any) {
+  if (!query.data) throw new Error("PUT requires data");
+      
+  if (!Object.keys(selected_data_fields).length) throw new Error("No allowed fields for PUT");
+
+  const safe = stripPrefixes(selected_data_fields);
+
+  if (!Object.keys(safe).length) {
+    throw new Error("UPDATE has no writable fields");
+  }
+
+  return {
+    execute: async () => {
+      const beforeRows = db.select(pre_post_select_fields).from(tableStruct.table)
+      
+      if(built_where) {
+        beforeRows.where(built_where)
+      }
+
+      if(limit != null) beforeRows.limit(limit)
+
+      const before = await beforeRows.execute();
+
+      const update_query = db.update(tableStruct.table).set(safe)
+      
+      if(built_where) {
+        update_query.where(built_where)
+      }
+
+      if(limit != null) update_query.limit(limit)
+
+      console.log(update_query.toSQL().sql, update_query.toSQL().params)
+      
+      const response = await update_query.execute();
+
+      const afterRows = db.select(pre_post_select_fields).from(tableStruct.table)
+      
+      if(built_where) {
+        afterRows.where(built_where)
+      }
+
+      if(limit != null) afterRows.limit(limit)
+      
+      const after = await afterRows.execute();
+
+      return await run_after(db, query, user, { before, after, response }, role, structure)
+    }
+  };
+}
+
+export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, allowed: FieldPermission) {
+  if (!query.data) throw new Error("POST requires data");
+    
+  if (!Object.keys(selected_data_fields).length) {
+    throw new Error("No allowed fields for POST");
+  }
+  
+  // Inject dynamic values ($user, $data, etc)
+  if(!Array.isArray(allowed)) {
+    if (typeof allowed === "object" && allowed.where) {
+      injectDynamicValues(allowed.where, user, query, selected_data_fields);
+    }
+  }
+
+  // Remove table prefixes (attendances.xxx → xxx)
+  const safe = stripPrefixes(selected_data_fields);
+
+  return {
+    execute: async () => {
+      const response = await db
+        .insert(tableStruct.table)
+        .values(safe)
+        .execute();
+
+      let insertedRows = null
+      if(response && response[0]?.insertId) {
+        insertedRows = await db
+        .select(pre_post_select_fields)
+        .from(tableStruct.table)
+        .orderBy(desc(tableStruct.table.id))
+        .where(eq(tableStruct.table.id, response[0]?.insertId!))
+        .limit(1)
+        .execute();
+      }
+
+      return await run_after(db, query, user, { before: null, after: insertedRows, response }, role, structure)
+    }
+  };
+}
+
+export async function delete_method(db: Database, pre_post_select_fields: Record<string, any>, tableStruct:TableStructure, built_where:any, limit:any){
+  return {
+    execute: async () => {
+      const toDelete = db.select(pre_post_select_fields).from(tableStruct.table)
+      
+      if(built_where) {
+        toDelete.where(built_where);
+      }
+
+      if(limit != null) toDelete.limit(limit)
+
+      const toDeleteRows = await toDelete.execute();
+
+      const delete_query = db.delete(tableStruct.table)
+      
+      if(built_where) {
+        delete_query.where(built_where);
+      }
+
+      if(limit != null) delete_query.limit(limit)
+      
+      const response = await delete_query.execute();
+
+      return { before: toDeleteRows, after: null, response };
+    }
+  };
 }
