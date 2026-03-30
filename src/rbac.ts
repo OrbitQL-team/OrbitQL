@@ -161,28 +161,50 @@ export function resolve_data(
     return allowed_fields;
 }
 
-export function resolve_allowed_fields(field:string, allowed:FieldPermission, disallowed:string[]):boolean {
-    if (disallowed.includes(field)) return false;
+function matchesField(field: string, col: string, rule: string): boolean {
+    if (rule === "*") return true;
+    return rule === field || rule === col;
+}
 
-    // Extract column name without prefix
-    const col = field.includes(".") ? field.split(".")[1] : field;
+function matchesPermission(
+    field: string,
+    col: string,
+    permission?: FieldPermission
+): boolean {
+    if (!permission) return false;
 
-    if(Array.isArray(allowed)) {
-        for (const rule of allowed) {
-            if (rule === "*") return true;
+    if (Array.isArray(permission)) {
+        return permission.some(rule => matchesField(field, col, rule));
+    }
 
-            // Legacy simple allowed list
-            if (rule === field || rule === col) return true;
+    if (typeof permission === "object") {
+        const rule = permission.field;
+
+        if (Array.isArray(rule)) {
+            if (rule.includes("*")) return true;
+            return rule.some(r => matchesField(field, col, r));
         }
-    }else if (typeof allowed === "object") {
-        if (allowed.field === "*") return true;
-            else if(Array.isArray(allowed.field)) {
-        if(allowed.field.includes("*")) return true
-            return allowed.field.includes(field) || allowed.field.includes(col)
-        }else return allowed.field === col || allowed.field === field
+
+        return matchesField(field, col, rule);
     }
 
     return false;
+}
+
+export function resolve_allowed_fields(
+    field: string,
+    allowed?: FieldPermission,
+    disallowed?: FieldPermission
+): boolean {
+    const col = field.includes(".") ? field.split(".")[1] : field;
+
+    const isAllowed = matchesPermission(field, col, allowed);
+    if (!isAllowed) return false;
+
+    const isDisallowed = matchesPermission(field, col, disallowed);
+    if (isDisallowed) return false;
+
+    return true;
 }
 
 export function stripPrefixes(input: any): any {
@@ -242,11 +264,25 @@ export function injectDynamicValues(
     query: StructuredQuery,
     safe?: Record<string, any>
 ): WhereCondition | SubqueryCondition {
-    if ("conditions" in cond && Array.isArray(cond.conditions)) {
+    if ("and" in cond && Array.isArray(cond.and)) {
         const newCond = { ...cond };
-        newCond.conditions = cond.conditions.map(c =>
+        newCond.and = cond.and.map(c =>
             injectDynamicValues(c, user, query, safe) as WhereCondition
         );
+        return newCond;
+    }else if ("or" in cond && Array.isArray(cond.or)) {
+        const newCond = { ...cond };
+        newCond.or = cond.or.map(c =>
+            injectDynamicValues(c, user, query, safe) as WhereCondition
+        );
+        return newCond;
+    } else if ("not" in cond && cond.not) {
+        const newCond = { ...cond };
+        newCond.not = injectDynamicValues(newCond.not, user, query, safe) as WhereCondition
+        return newCond;
+    } else if ("if" in cond && cond.if && cond.if.when) {
+        const newCond = { ...cond };
+        newCond.if.when = injectDynamicValues(newCond.if.when, user, query, safe) as WhereCondition
         return newCond;
     } else if ("field" in cond && cond.field) {
         // resolve placeholder

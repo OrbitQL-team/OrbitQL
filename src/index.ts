@@ -23,6 +23,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   }
   
   const allowed = rolePermissions.allowed ?? [];
+  const disallowed = rolePermissions.disallowed ?? [];
   
   if(is_allowed_empty(allowed)) throw new Error("Not allowed");
 
@@ -37,7 +38,8 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     selected_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
   }
 
-  const aclWhere = buildAclWhere(allowed, user, query)
+  const aclWhere = buildAclWhere(allowed, disallowed, user, query)
+  console.log(aclWhere)
 
   let combinedWhere: WhereCondition | undefined;
   if (query.where && aclWhere) {
@@ -53,7 +55,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   let limit = null
   if(query.limit) limit = query.limit
 
-  if (combinedWhere && typeof allowed != 'string' && !Array.isArray(allowed)) {
+  if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
     const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, query, tableStruct.table)
 
     if(!has_been_accepted) throw new Error("Not allowed")

@@ -104,7 +104,7 @@ export type Endpoint = {
 
 export type RolePermissions = {
   allowed: FieldPermission;
-  disallowed?: string[];
+  disallowed?: FieldPermission;
 };
 
 export type FieldPermission =
@@ -156,7 +156,6 @@ export type SimpleCondition = {
   operator?: SafeOperator;
   left_value?: any;
   value?: any;
-  conditions?: WhereCondition[];
 };
 
 export type Join = {
@@ -165,15 +164,24 @@ export type Join = {
   on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
 };
 
+type NotCondition = {
+  not: WhereCondition | SubqueryCondition;
+  and?: never;
+  or?: never;
+  if?: never;
+}
+
 // Nested AND/OR conditions
 type AndCondition = {
   and: (WhereCondition | SubqueryCondition)[];
+  not?: never;
   or?: never;
   if?: never;
 };
 
 type OrCondition = {
   or: (WhereCondition | SubqueryCondition)[];
+  not?: never;
   and?: never;
   if?: never;
 };
@@ -184,11 +192,12 @@ type IfCondition = {
     do?: WhereCondition | SubqueryCondition;
     else?: WhereCondition | SubqueryCondition;
   };
+  not?: never;
   and?: never;
   or?: never;
 };
 
-export type NestedCondition = AndCondition | OrCondition | IfCondition;
+export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
 export type WhereCondition = SimpleCondition | NestedCondition;

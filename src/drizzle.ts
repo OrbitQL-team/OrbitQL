@@ -8,7 +8,8 @@ import {
   between,
   type SQLWrapper,
   desc,
-  asc
+  asc,
+  not
 } from "drizzle-orm";
 import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint } from "./types.ts";
 import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
@@ -119,6 +120,8 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       }
     }
     return condition
+  }else if('not' in cond && cond.not) {
+    return not(await buildWhere(db, cond.not, tableMap, user, query, default_table))
   }
 
   // Determine left side
@@ -288,13 +291,33 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
 /*───────────────────────────────────────────────
   BUILD ACL WHERE
 ───────────────────────────────────────────────*/
-export function buildAclWhere(allowed: FieldPermission, user: any, query:StructuredQuery): WhereCondition | null {
+export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermission, user: any, query:StructuredQuery): WhereCondition | null {
+  // Start with undefined
   let aclWhere: WhereCondition | null = null;
 
-  if(!Array.isArray(allowed)) {
-    if (typeof allowed === "object" && allowed.where) {
-      aclWhere = injectDynamicValues(JSON.parse(JSON.stringify(allowed.where)), user, query) as WhereCondition;
-    }
+  // Helper to inject if `where` exists
+  function injectIfExists(obj: any) {
+    return obj?.where ? (injectDynamicValues(obj.where, user, query) as WhereCondition) : undefined;
+  }
+
+  const allowedWhere = injectIfExists(allowed);
+  const disallowedWhere = injectIfExists(disallowed);
+
+  if (allowedWhere && disallowedWhere) {
+    aclWhere = {
+      and: [
+        allowedWhere,
+        {
+          not: disallowedWhere
+        }
+      ],
+    };
+  } else if (allowedWhere) {
+    aclWhere = allowedWhere;
+  } else if (disallowedWhere) {
+    aclWhere = {
+      not: disallowedWhere
+    };
   }
 
   return aclWhere;
@@ -340,7 +363,7 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   // Start empty SQL object
   const need_table:boolean = has_field_or_col_attribute(where_condtion)
   
-  let check_query:any = sql`COALESCE(MAX(CASE WHEN`.append(where).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
+  let check_query:any = sql`COALESCE(MAX(CASE WHEN `.append(where).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
 
   const from_table = need_table ? default_table : sql`(select 1) AS t`
 

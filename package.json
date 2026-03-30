@@ -30,7 +30,9 @@
     "nodejs",
     "dsl",
     "data-platform",
-    "headless-api"
+    "headless-api",
+    "drizzle",
+    "drizzle-orm"
   ],
   "author": "Zucchelli Daniele",
   "license": "SEE LICENSE IN 'LICENSE' file",

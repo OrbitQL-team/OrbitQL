@@ -32,21 +32,30 @@ const structure: Record<string, TableStructure> = {
                             ]
                         }
                     },
-                    disallowed: ["have_access"] 
+                    disallowed: {
+                        field: ["have_access"],
+                        where: {
+                            field: 'users.id',
+                            operator: '!=',
+                            value: '$user.id'
+                        }
+                    }
                 },
             },
             {
                 type: "PUT" as const,
                 user: { 
                     allowed:{
-                            field: ["*"],
-                            where: {
-                                field: 'users.id',
-                                operator: '=',
-                                value: '$user.id'
-                            }
-                        }, 
-                    disallowed: ["id", "have_access"]
+                        field: ["*"],
+                    }, 
+                    disallowed: {
+                        field: ["id", "have_access"],
+                        where: {
+                            field: 'users.id',
+                            operator: '=',
+                            value: '$user.id'
+                        }
+                    }
                 },
             },
             { 
