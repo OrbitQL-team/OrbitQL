@@ -548,7 +548,7 @@ export async function put_method(db: Database, query: StructuredQuery, user:stri
   };
 }
 
-export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, allowed: FieldPermission) {
+export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission) {
   if (!query.data) throw new Error("POST requires data");
     
   if (!Object.keys(selected_data_fields).length) {
@@ -559,6 +559,12 @@ export async function post_method(db: Database, query: StructuredQuery, user:str
   if(!Array.isArray(allowed)) {
     if (typeof allowed === "object" && allowed.where) {
       injectDynamicValues(allowed.where, user, query, selected_data_fields);
+    }
+  }
+
+  if(!Array.isArray(disallowed)) {
+    if (typeof disallowed === "object" && disallowed.where) {
+      injectDynamicValues(disallowed.where, user, query, selected_data_fields);
     }
   }
 

@@ -73,7 +73,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       return await put_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit)
     }
     case 'POST': {
-      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, allowed)
+      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, allowed, disallowed)
     }
     case 'DELETE': {
       return await delete_method(db, pre_post_select_fields, tableStruct, built_where, limit)
