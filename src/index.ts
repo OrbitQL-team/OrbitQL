@@ -22,8 +22,19 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     throw new Error(`Invalid role permissions format for role '${role}'`);
   }
   
-  const allowed = rolePermissions.allowed ?? [];
-  const disallowed = rolePermissions.disallowed ?? [];
+  const allowed =
+      'allowed' in rolePermissions
+          ? rolePermissions.allowed
+          : 'allow' in rolePermissions
+          ? rolePermissions.allow
+          : [];
+
+  const disallowed =
+      'disallowed' in rolePermissions
+          ? rolePermissions.disallowed ?? []
+          : 'deny' in rolePermissions
+          ? rolePermissions.deny ?? []
+          : [];
   
   if(is_allowed_empty(allowed)) throw new Error("Not allowed");
 

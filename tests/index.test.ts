@@ -15,7 +15,7 @@ const structure: Record<string, TableStructure> = {
             {
                 type: "GET" as const,
                 user: { 
-                    allowed: {
+                    allow: {
                         field: ["*"],
                         where: {
                             and: [
@@ -32,7 +32,7 @@ const structure: Record<string, TableStructure> = {
                             ]
                         }
                     },
-                    disallowed: {
+                    deny: {
                         field: ["have_access"],
                         where: {
                             field: 'users.id',

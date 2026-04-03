@@ -102,10 +102,15 @@ export type Endpoint = {
 /*                                 ROLES                                      */
 /* -------------------------------------------------------------------------- */
 
-export type RolePermissions = {
-  allowed: FieldPermission;
-  disallowed?: FieldPermission;
-};
+type AllowedAliases =
+  | { allowed: FieldPermission }
+  | { allow: FieldPermission };
+
+type DisallowedAliases =
+  | { disallowed?: FieldPermission }
+  | { deny?: FieldPermission };
+
+export type RolePermissions = AllowedAliases & DisallowedAliases;
 
 export type FieldPermission =
   | string[] | string

@@ -36,8 +36,19 @@ export function resolve_fields(
             return allowed_fields;
         }
 
-        const allowed = rolePermissions.allowed ?? [];
-        const disallowed = rolePermissions.disallowed ?? [];
+        const allowed =
+            'allowed' in rolePermissions
+                ? rolePermissions.allowed
+                : 'allow' in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            'disallowed' in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : 'deny' in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
 
         for (const field of Object.keys(tableMap[default_table])) {
             if (!resolve_allowed_fields(field, allowed, disallowed)) {
@@ -72,8 +83,19 @@ export function resolve_fields(
             continue;
         }
 
-        const allowed = rolePermissions.allowed ?? [];
-        const disallowed = rolePermissions.disallowed ?? [];
+        const allowed =
+            'allowed' in rolePermissions
+                ? rolePermissions.allowed
+                : 'allow' in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            'disallowed' in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : 'deny' in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
         if(field == "*") {
             for (const current_field of Object.keys(tableMap[table])) {
                 if (!resolve_allowed_fields(current_field, allowed, disallowed)) {
@@ -138,8 +160,19 @@ export function resolve_data(
             continue;
         }
 
-        const allowed = rolePermissions.allowed ?? [];
-        const disallowed = rolePermissions.disallowed ?? [];
+        const allowed =
+            'allowed' in rolePermissions
+                ? rolePermissions.allowed
+                : 'allow' in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            'disallowed' in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : 'deny' in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
 
         // Authorization check (normalized field)
         if (!resolve_allowed_fields(field, allowed, disallowed)) {
