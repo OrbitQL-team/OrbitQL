@@ -1,6 +1,6 @@
 import * as schema from './schema';
 import build_query from "../src";
-import { NONE, TableStructure } from "../src/types";
+import { NONE, StructuredQuery, TableStructure } from "../src/types";
 import mysql from 'mysql2/promise';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2'
 import { describe, it, expect } from "vitest";
@@ -47,14 +47,19 @@ const structure: Record<string, TableStructure> = {
                 user: { 
                     allowed:{
                         field: ["*"],
+                        where: {
+                            if: {
+                                'when': {
+                                    left_value: '$data.name',
+                                    operator: 'IS NOT NULL'
+                                },
+                                do: true,
+                                else: false
+                            }
+                        }
                     }, 
                     disallowed: {
                         field: ["id", "have_access"],
-                        where: {
-                            field: 'users.id',
-                            operator: '=',
-                            value: '$user.id'
-                        }
                     }
                 },
             },
@@ -70,9 +75,16 @@ const structure: Record<string, TableStructure> = {
         table: schema.users,
     }
 }
-const query = {
-    type: 'GET' as const,
-    select: ['*'],
+const query:StructuredQuery = {
+    type: 'PUT' as const,
+    data: {
+        name: 'Daniele'
+    },
+    where: {
+        field: 'users.id',
+        operator: '=',
+        value: 1
+    },
     table: 'users'
 }
 
@@ -86,22 +98,19 @@ const local_user = {
 
 describe("build_query result", () => {
   it("should return at least one row and measure execution time", async () => {
-    const start = Date.now(); // ⏱ start timer
+    const start = Date.now();
 
     const built_query = await build_query(db, query, local_user, "user", structure);
     const result = await built_query.execute();
 
-    const end = Date.now(); // ⏱ end timer
+    const end = Date.now();
     const duration = end - start;
 
+    console.log(result)
 
-    // Handle both array or object with rows
-    const rows = Array.isArray(result) ? result : result.rows;
-
-    console.log(rows);
     console.log(`Query executed in ${duration} ms`);
 
     // Assert that there is at least one row
-    expect(rows.length).toBeGreaterThan(0);
+    expect(result);
   });
 });

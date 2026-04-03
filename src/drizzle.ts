@@ -86,11 +86,12 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if(is_one_boolean) {
       const has_true = parts.some(part => typeof part === "boolean" && part === true)
       const has_false = parts.some(part => typeof part === "boolean" && part === false)
-      if('or' in cond && has_true) return true
-      else if('and' in cond && has_false) return false
-      else if('and' in cond && has_true) {
+      if('or' in cond && cond.or && has_true) return sql`true`
+      else if('and' in cond && cond.and && has_false) return sql`false`
+      else if('and' in cond && cond.and && has_true) {
         parts = parts.filter(part => !(typeof part === "boolean" && part === true))
-        if(parts.length == 1) return parts
+        console.log('PARTS: ', parts)
+        if(parts.length == 1) return sql`${parts}`;
       }
     }
     return 'and' in cond ? and(...parts) : or(...parts);
@@ -98,26 +99,25 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
     let condition:any = sql``
     const when_condition = await if_condition(db, cond.if.when, tableMap, user, query, default_table)
-    if("do" in cond.if && cond.if.do) {
-      let do_condition
-      if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table)
-      else if(typeof cond.if.do == 'boolean') return cond.if.do
-      else if(cond.if.do) do_condition = sql`${cond.if.do}`
-
+    console.log('RESULT OF WHEN', when_condition)
+    if("do" in cond.if) {
+      console.log('HERE')
       if(when_condition) {
-        if(typeof do_condition == 'boolean') return do_condition
-        else condition.append(do_condition)
+        let do_condition
+        if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table)
+        else if(typeof cond.if.do == 'boolean') return cond.if.do
+        else if(cond.if.do) do_condition = sql`${cond.if.do}`
+
+        condition.append(do_condition)
       }
-      else if("else" in cond.if && cond.if.else) {
+      else if("else" in cond.if) {
+        console.log(typeof cond.if.else)
         let else_condition
         if(typeof cond.if.else == 'object') else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table)
-        else if(typeof cond.if.else == 'boolean') else_condition = cond.if.else
+        else if(typeof cond.if.else == 'boolean') return cond.if.else
         else if(cond.if.else) else_condition = sql`${cond.if.else}`
           
-        if(!when_condition) {
-          if(typeof else_condition == 'boolean') return else_condition
-          else condition.append(else_condition)
-        }
+        condition.append(else_condition)
       }
     }
     return condition
@@ -209,7 +209,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     // Normal IN array
     if (Array.isArray(right)) return inArray(left, right);
   }else if(cond.operator && cond.operator.toUpperCase() === "IN") {
-    return false
+    return sql`false`
   }
 
   // Subquery EXISTS
@@ -281,7 +281,6 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       case "IS NULL": return isNull(left);
       case "IS NOT NULL": return isNotNull(left);
       case "BETWEEN": {
-        console.log(cond, left, start, end)
         return between(left, start, end)
       }
     }

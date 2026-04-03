@@ -50,7 +50,6 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   }
 
   const aclWhere = buildAclWhere(allowed, disallowed, user, query)
-  console.log(aclWhere)
 
   let combinedWhere: WhereCondition | undefined;
   if (query.where && aclWhere) {
@@ -68,7 +67,6 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
     const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, query, tableStruct.table)
-
     if(!has_been_accepted) throw new Error("Not allowed")
   }
 

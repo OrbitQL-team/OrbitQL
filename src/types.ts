@@ -203,8 +203,8 @@ type OrCondition = {
 type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
-    do?: WhereCondition | SubqueryCondition;
-    else?: WhereCondition | SubqueryCondition;
+    do?: WhereCondition | SubqueryCondition | boolean;
+    else?: WhereCondition | SubqueryCondition | boolean;
   };
   not?: never;
   and?: never;

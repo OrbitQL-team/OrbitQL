@@ -268,27 +268,34 @@ export function stripPrefixes(input: any): any {
 export function resolveCustomValue(value: any, user: any, query: StructuredQuery): any {
     if (!value || typeof value !== "string") return value;
 
+    function is_undefined(value:any) {
+        if(value == undefined) throw new Error(`Undefined value not supported`);
+        return value
+    }
+
     // $user.X → from user object
     let match = value.match(/^\$user\.(\w+)$/);
-    if (match && user) return user[match[1]];
+    if (match && user) {
+        return is_undefined(user[match[1]])
+    };
 
     // $data.X → from query.data
     match = value.match(/^\$data\.(.+)$/);
     if (match && query?.data) {
         const key = match[1]; // e.g., "attendances.type"
         // exact match in data
-        if (key in query.data) return query.data[key];
+        if (key in query.data) return is_undefined(query.data[key])
         // fallback: try dot-splitting (e.g., 'attendances.type' → query.data['attendances']['type'])
         const parts = key.split(".");
         let val: any = query.data;
         for (const part of parts) {
             if (val && part in val) val = val[part];
-            else return null; // not found, return placeholder
+            else return '';
         }
-        return val;
+        return is_undefined(val);
     }
 
-    return value;
+    return is_undefined(value);
 }
 
 export function injectDynamicValues(
