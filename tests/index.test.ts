@@ -33,7 +33,7 @@ const structure: Record<string, TableStructure> = {
                         }
                     },
                     deny: {
-                        field: ["have_access"],
+                        field: "have_access",
                         where: {
                             field: 'users.id',
                             operator: '!=',

@@ -9,7 +9,8 @@ import {
   type SQLWrapper,
   desc,
   asc,
-  not
+  not,
+  notLike
 } from "drizzle-orm";
 import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint } from "./types.ts";
 import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
@@ -94,24 +95,24 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     }
     return 'and' in cond ? and(...parts) : or(...parts);
   }
-  else if('if' in cond && "when" in cond && cond.when) {
+  else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
     let condition:any = sql``
-    const when_condition = await if_condition(db, cond.when, tableMap, user, query, default_table)
-    if("do" in cond && cond.do) {
+    const when_condition = await if_condition(db, cond.if.when, tableMap, user, query, default_table)
+    if("do" in cond.if && cond.if.do) {
       let do_condition
-      if(typeof cond.do == 'object') do_condition = await buildWhere(db, cond.do, tableMap, user, query, default_table)
-      else if(typeof cond.do == 'boolean') return cond.do
-      else if(cond.do) do_condition = sql`${cond.do}`
+      if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table)
+      else if(typeof cond.if.do == 'boolean') return cond.if.do
+      else if(cond.if.do) do_condition = sql`${cond.if.do}`
 
       if(when_condition) {
         if(typeof do_condition == 'boolean') return do_condition
         else condition.append(do_condition)
       }
-      else if("else" in cond && cond.else) {
+      else if("else" in cond.if && cond.if.else) {
         let else_condition
-        if(typeof cond.else == 'object') else_condition = await buildWhere(db, cond.else, tableMap, user, query, default_table)
-        else if(typeof cond.else == 'boolean') else_condition = cond.else
-        else if(cond.else) else_condition = sql`${cond.else}`
+        if(typeof cond.if.else == 'object') else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table)
+        else if(typeof cond.if.else == 'boolean') else_condition = cond.if.else
+        else if(cond.if.else) else_condition = sql`${cond.if.else}`
           
         if(!when_condition) {
           if(typeof else_condition == 'boolean') return else_condition
@@ -266,6 +267,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       case ">": return gt(left, right);
       case ">=": return gte(left, right);
       case "LIKE": return like(left, right);
+      case "NOT LIKE": return notLike(left, right);
       case "ILIKE": return ilike(left, right);
       case "NOT ILIKE": return notIlike(left, right);
       case "IS": {

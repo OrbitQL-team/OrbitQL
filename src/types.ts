@@ -131,7 +131,16 @@ export const SAFE_OPERATORS = [
   ">",
   ">=",
   "LIKE",
-  "IN"
+  "NOT LIKE",
+  "ILIKE",
+  "NOT ILIKE",
+  "IS",
+  "IS NOT",
+  "IS NULL",
+  "IS NOT NULL",
+  "BETWEEN",
+  "IN",
+  "EXISTS"
 ] as const;
 
 export type SafeOperator = typeof SAFE_OPERATORS[number];
