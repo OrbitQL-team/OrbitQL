@@ -7,6 +7,9 @@ import { describe, it, expect } from "vitest";
 
 const client = mysql.createPool("mysql://polaris:polaris_is_very_cool@localhost:3306/polaris");
 
+const DB = process.env.DB || 'mysql';
+const local_user = process.env.USER_OBJ ? JSON.parse(process.env.USER_OBJ) : null
+
 const db = drizzle(client, { schema, mode: 'default' }) ?? null as unknown as MySql2Database
 
 const structure: Record<string, TableStructure> = {
@@ -60,6 +63,11 @@ const structure: Record<string, TableStructure> = {
                     }, 
                     disallowed: {
                         field: ["id", "have_access"],
+                        where: {
+                            left_value: "$user.have_access",
+                            operator: "=",
+                            value: 0
+                        }
                     }
                 },
             },
@@ -86,14 +94,6 @@ const query:StructuredQuery = {
         value: 1
     },
     table: 'users'
-}
-
-const local_user = {
-    id: 1,
-    name: 'test',
-    surname: 'test',
-    email: 'test@test.test',
-    have_access: 1
 }
 
 describe("build_query result", () => {
