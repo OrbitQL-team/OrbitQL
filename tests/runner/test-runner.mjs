@@ -3,7 +3,9 @@
 import { spawn } from 'child_process';
 import { select } from './db-select.mjs';
 import { buildObject } from './object-builder.mjs';
-// import default_user from '../defaults/user.mjs'
+import default_user from '../defaults/user.mjs'
+import default_structure from '../defaults/structure.mjs'
+import { navigate_object } from './object-navigator-editor.mjs';
 
 async function main() {
   if (!process.stdout.isTTY) {
@@ -21,11 +23,17 @@ async function main() {
   do {
     db_select = await select();
 
-    // Build object after DB selection
-    const { result: user, previous } = await buildObject('User body');
-
+    const { result: user, previous } = await navigate_object('Structure body', '../defaults/structure.mjs', default_structure);
     if (previous) {
-      back = true; // go back to db selection
+      back = true;
+      continue;
+    }
+
+    back = false;
+
+    const { result: structure, previous_structure } = await buildObject('User body', '../defaults/user.mjs', default_user);
+    if (previous_structure) {
+      back = true;
       continue;
     }
 
