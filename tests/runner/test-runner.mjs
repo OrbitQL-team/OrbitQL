@@ -23,7 +23,7 @@ async function main() {
   do {
     db_select = await select();
 
-    const { result: user, previous } = await navigate_object('Structure body', '../defaults/structure.mjs', default_structure);
+    const { result: structure, previous } = await navigate_object('Structure body', '../defaults/structure.mjs', default_structure);
     if (previous) {
       back = true;
       continue;
@@ -31,7 +31,7 @@ async function main() {
 
     back = false;
 
-    const { result: structure, previous_structure } = await buildObject('User body', '../defaults/user.mjs', default_user);
+    const { result: user, previous_structure } = await buildObject('User body', '../defaults/user.mjs', default_user);
     if (previous_structure) {
       back = true;
       continue;
