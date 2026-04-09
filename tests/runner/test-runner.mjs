@@ -3,6 +3,7 @@
 import { spawn } from 'child_process';
 import { select } from './db-select.mjs';
 import { buildObject } from './object-builder.mjs';
+// import default_user from '../defaults/user.mjs'
 
 async function main() {
   if (!process.stdout.isTTY) {

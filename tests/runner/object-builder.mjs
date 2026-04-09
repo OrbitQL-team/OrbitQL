@@ -5,12 +5,11 @@ import prompts from 'prompts';
  * Shows current object and allows adding attributes.
  * Handles Ctrl+C / cancellation gracefully.
  */
-export async function buildObject(initialName = 'Object') {
-  const result = {};
+export async function buildObject(initialName = 'Object', result = {}) {
   let done = false;
 
   const onCancel = () => {
-    console.log('\n❌ Cancelled by user');
+    console.log('\nCancelled by user');
     process.exit(1);
   };
 
