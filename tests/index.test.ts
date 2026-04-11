@@ -35,21 +35,27 @@ structure = injectSchemaIntoTable(structure, schema)
 
 if(query == null) throw Error('Query not passed')
 
-describe("build_query result", () => {
-  it("should return at least one row and measure execution time", async () => {
-    const start = Date.now();
+it("should measure build and execute performance", async () => {
+  // Measure build time
+  const buildStart = performance.now();
 
-    const built_query = await build_query(db, query, local_user, "user", structure);
-    const result = await built_query.execute();
+  const built_query = await build_query(
+    db,
+    query,
+    local_user,
+    "user",
+    structure
+  );
 
-    const end = Date.now();
-    const duration = end - start;
+  const buildTime = performance.now() - buildStart;
 
-    console.log(result)
+  // Measure execution time
+  const execStart = performance.now();
 
-    console.log(`Query executed in ${duration} ms`);
+  await expect(built_query.execute()).resolves.not.toThrow();
 
-    // Assert that there is at least one row
-    expect(result);
-  });
+  const execTime = performance.now() - execStart;
+
+  console.log(`Build time: ${buildTime.toFixed(2)} ms`);
+  console.log(`Execute time: ${execTime.toFixed(2)} ms`);
 });
