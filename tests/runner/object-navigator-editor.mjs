@@ -49,6 +49,7 @@ export async function navigate_object(initialName = "Object", file_path, default
     // ========================
     if (isArr) {
       choices = [
+        { title: "Next", value: { type: "done" } },
         ...current.map((item, i) => ({
           title: formatArrayItem(i, item),
           value: { type: "index", index: i },
@@ -60,7 +61,6 @@ export async function navigate_object(initialName = "Object", file_path, default
         ...(current_path.length
           ? [{ title: "⬅ Previous", value: { type: "back" } }]
           : []),
-        { title: "✅ Done", value: { type: "done" } },
         { title: "💾 Save as default ", value: { type: "save-default" } }
       ];
     }
@@ -70,6 +70,7 @@ export async function navigate_object(initialName = "Object", file_path, default
     // ========================
     else {
       choices = [
+        { title: "Next", value: { type: "done" } },
         ...keys.map((k) => ({
           title: formatKey(k, current[k]),
           value: { type: "key", key: k },
@@ -81,7 +82,6 @@ export async function navigate_object(initialName = "Object", file_path, default
         ...(current_path.length
           ? [{ title: "⬅ Previous", value: { type: "back" } }]
           : []),
-        { title: "✅ Done", value: { type: "done" } },
         { title: "💾 Save as default ", value: { type: "save-default" } }
       ];
     }

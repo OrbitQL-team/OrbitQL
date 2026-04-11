@@ -79,6 +79,6 @@ export default {
         }
       }
     ],
-    "table": "TODO"
+    "table": "users"
   }
 };

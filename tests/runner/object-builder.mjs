@@ -35,12 +35,12 @@ export async function buildObject(initialName = 'Object', defaultFilePath = null
         name: 'action',
         message: 'Choose action',
         choices: [
+          { title: 'Next', value: 'next' },
+          { title: 'Previous', value: 'previous' },
           { title: '➕ Add a new attribute', value: 'add' },
           { title: '✏️ Edit existing attribute', value: 'edit' },
           { title: '❌ Delete attribute', value: 'delete' },
-          { title: '💾 Save as default', value: 'save-default' },
-          { title: 'Next', value: 'next' },
-          { title: 'Previous', value: 'previous' }
+          { title: '💾 Save as default', value: 'save-default' }
         ]
       },
       { onCancel }
