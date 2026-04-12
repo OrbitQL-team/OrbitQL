@@ -113,7 +113,7 @@ type DisallowedAliases =
 export type RolePermissions = AllowedAliases & DisallowedAliases;
 
 export type FieldPermission =
-  | string[] | string
+  | string | string[]
   | {
       field: string | string[];
       where?: WhereCondition;
@@ -152,7 +152,7 @@ export type SafeOperator = typeof SAFE_OPERATORS[number];
 export type StructuredQuery = {
   table: keyof Structure;
   type: "GET" | "PUT" | "DELETE" | "POST";
-  select?: string[];
+  select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
   data?: Record<string, any>;

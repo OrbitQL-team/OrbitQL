@@ -18,12 +18,15 @@ export function resolve_fields(
     tableMap: Record<string, Record<string, any>>
 ) {
     const allowed_fields: Record<string, any> = {};
-    if (!fields || (typeof fields !== "object" && !Array.isArray(fields))) return allowed_fields;
+    console.log(fields)
+    if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) return allowed_fields;
 
-    const keys = Array.isArray(fields) ? fields : Object.keys(fields);
+    const keys = Array.isArray(fields) ? fields : fields;
+
+    console.log('keys: ',keys)
 
     // Handle ["*"] wildcard
-    if (keys.length === 1 && keys[0] === "*") {
+    if ((keys == "*" && typeof keys == 'string') || (keys.length === 1 && keys[0] === "*")) {
         // expand to all allowed fields of the default_table
         const tableStruct = structure[default_table];
         if (!tableStruct) throw new Error(`Unknown table '${default_table}'`);
@@ -62,7 +65,7 @@ export function resolve_fields(
         return allowed_fields;
     }
 
-    for (const entry of keys) {
+    function resolve_field(entry:string) {
         let table: string;
         let field: string;
 
@@ -80,7 +83,7 @@ export function resolve_fields(
 
         const rolePermissions = endpoint[role];
         if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
-            continue;
+            return;
         }
 
         const allowed =
@@ -109,10 +112,19 @@ export function resolve_fields(
             if (!resolve_allowed_fields(field, allowed, disallowed)) {
                 console.log("TABLE: ", table)
                 console.log("REMOVED: ",field)
-                continue
+                return
             };
             if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
             allowed_fields[`${table}.${field}`] = tableMap[table][field];
+        }
+    }
+
+    if(typeof keys == 'string') {
+        resolve_field(keys)
+    }
+    if(Array.isArray(keys)) {
+        for (const entry of keys) {
+            resolve_field(entry)
         }
     }
 
@@ -205,6 +217,10 @@ function matchesPermission(
     permission?: FieldPermission
 ): boolean {
     if (!permission) return false;
+
+    if(typeof permission == 'string') {
+        return matchesField(field, col, permission);
+    }
 
     if (Array.isArray(permission)) {
         return permission.some(rule => matchesField(field, col, rule));

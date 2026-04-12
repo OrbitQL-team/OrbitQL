@@ -5,9 +5,7 @@ export default {
         "type": "GET",
         "user": {
           "allow": {
-            "field": [
-              "*"
-            ],
+            "field": "name",
             "where": {
               "and": [
                 {
