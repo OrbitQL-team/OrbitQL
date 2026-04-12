@@ -10,7 +10,8 @@ import {
   desc,
   asc,
   not,
-  notLike
+  notLike,
+  getTableName
 } from "drizzle-orm";
 import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint } from "./types.ts";
 import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
@@ -29,7 +30,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
     // Support object with AND/OR inside 'on'
     if (j.on && (j.on.type === "and" || j.on.type === "or")) {
       // Complex condition
-      joinCondition = await buildWhere(db, j.on, tableMap, user, query, default_table);
+      joinCondition = await buildWhere(db, j.on, tableMap, user, query, default_table, getTableName(default_table));
     } else {
       // Simple key-value mapping
       const conditions: any[] = [];
@@ -63,7 +64,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
 /*───────────────────────────────────────────────
   BUILD WHERE
 ───────────────────────────────────────────────*/
-export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, query: StructuredQuery, default_table:any): Promise<any> {
+export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, query: StructuredQuery, default_table:any, default_table_name: string): Promise<any> {
   // Nested AND/OR
   if ('and' in cond || 'or' in cond) {
     let parts: SQLWrapper[] = [];
@@ -71,13 +72,13 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if ("and" in cond && cond.and) {
         parts = await Promise.all(
             cond.and.map((c) =>
-                buildWhere(db, c, tableMap, user, query, default_table)
+                buildWhere(db, c, tableMap, user, query, default_table, default_table_name)
             )
         );
     } else if ("or" in cond && cond.or) {
         parts = await Promise.all(
             cond.or.map((c) =>
-                buildWhere(db, c, tableMap, user, query, default_table)
+                buildWhere(db, c, tableMap, user, query, default_table, default_table_name)
             )
         );
     }
@@ -104,7 +105,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       console.log('HERE')
       if(when_condition) {
         let do_condition
-        if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table)
+        if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table, default_table_name)
         else if(typeof cond.if.do == 'boolean') return cond.if.do
         else if(cond.if.do) do_condition = sql`${cond.if.do}`
 
@@ -113,7 +114,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       else if("else" in cond.if) {
         console.log(typeof cond.if.else)
         let else_condition
-        if(typeof cond.if.else == 'object') else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table)
+        if(typeof cond.if.else == 'object') else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table, default_table_name)
         else if(typeof cond.if.else == 'boolean') return cond.if.else
         else if(cond.if.else) else_condition = sql`${cond.if.else}`
           
@@ -122,7 +123,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     }
     return condition
   }else if('not' in cond && cond.not) {
-    return not(await buildWhere(db, cond.not, tableMap, user, query, default_table))
+    return not(await buildWhere(db, cond.not, tableMap, user, query, default_table, default_table_name))
   }
 
   // Determine left side
@@ -133,16 +134,15 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   let end: any
 
   if ("left_value" in cond) {
-    left = resolveCustomValue(cond.left_value, user, query);
-
-    if (left && typeof left === "object" && "$col" in left) {
-      const [vTbl, vCol] = left.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${left.$col}' not found`);
-      left = vColumn;
-    }
+    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name);
   } else if ("field" in cond && cond.field) {
-    const [tbl, col] = cond.field.split(".");
+    let tbl, col;
+    if(cond.field.includes(".")) {
+      [tbl, col] = cond.field.split(".");
+    }else {
+      col = cond.field;
+      tbl = default_table_name;
+    }
     const column = tableMap[tbl]?.[col];
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
@@ -151,36 +151,12 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   }
 
   if ("value" in cond) {
-    right = resolveCustomValue(cond.value, user, query);
-
-    // Handle $col references
-    if (right && typeof right === "object" && "$col" in right) {
-      const [vTbl, vCol] = right.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${right.$col}' not found`);
-      right = vColumn;
-    }
+    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name);
   }
   
   if("start" in cond && "end" in cond && cond.operator && cond.operator.toUpperCase() == "BETWEEN") {
-    start = resolveCustomValue(cond.start, user, query);
-
-    if (start && typeof start === "object" && "$col" in start) {
-      const [vTbl, vCol] = start.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${start.$col}' not found`);
-      start = vColumn;
-    }
-
-    end = resolveCustomValue(cond.end, user, query);
-
-    // Handle $col references
-    if (end && typeof end === "object" && "$col" in end) {
-      const [vTbl, vCol] = end.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${end.$col}' not found`);
-      end = vColumn;
-    }
+    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name);
+    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name);
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
   } else if(cond.operator && cond.operator.toUpperCase() == "BETWEEN" && !("start" in cond && "end" in cond)) {
@@ -198,7 +174,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         ? and(
             ...(await Promise.all(
               right.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table)
+                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
               )
             ))
           )
@@ -226,7 +202,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         ? and(
             ...(await Promise.all(
               left.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table)
+                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
               )
             ))
           )
@@ -241,7 +217,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         ? and(
             ...(await Promise.all(
               right.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table)
+                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
               )
             ))
           )
@@ -292,13 +268,13 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
 /*───────────────────────────────────────────────
   BUILD ACL WHERE
 ───────────────────────────────────────────────*/
-export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermission, user: any, query:StructuredQuery): WhereCondition | null {
+export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermission, user: any, query:StructuredQuery, tableMap: Record<string, any>, default_table_name: string): WhereCondition | null {
   // Start with undefined
   let aclWhere: WhereCondition | null = null;
 
   // Helper to inject if `where` exists
   function injectIfExists(obj: any) {
-    return obj?.where ? (injectDynamicValues(obj.where, user, query) as WhereCondition) : undefined;
+    return obj?.where ? (injectDynamicValues(obj.where, user, query, tableMap, default_table_name) as WhereCondition) : undefined;
   }
 
   const allowedWhere = injectIfExists(allowed);
@@ -359,7 +335,7 @@ export async function run_after(db:Database, query:StructuredQuery, user:any, ot
   IF CONDITION
 ───────────────────────────────────────────────*/
 export async function if_condition(db:Database, where_condtion:WhereCondition, table_map:any, user:any, query:StructuredQuery, default_table:any):Promise<boolean> {
-  let where = await buildWhere(db, where_condtion, table_map, user, query, default_table)
+  let where = await buildWhere(db, where_condtion, table_map, user, query, default_table, getTableName(default_table));
 
   // Start empty SQL object
   const need_table:boolean = has_field_or_col_attribute(where_condtion)
@@ -549,7 +525,7 @@ export async function put_method(db: Database, query: StructuredQuery, user:stri
   };
 }
 
-export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission) {
+export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, default_table_name: string, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission) {
   if (!query.data) throw new Error("POST requires data");
     
   if (!Object.keys(selected_data_fields).length) {
@@ -559,13 +535,13 @@ export async function post_method(db: Database, query: StructuredQuery, user:str
   // Inject dynamic values ($user, $data, etc)
   if(!Array.isArray(allowed)) {
     if (typeof allowed === "object" && allowed.where) {
-      injectDynamicValues(allowed.where, user, query, selected_data_fields);
+      injectDynamicValues(allowed.where, user, query, tableMap, default_table_name, selected_data_fields);
     }
   }
 
   if(!Array.isArray(disallowed)) {
     if (typeof disallowed === "object" && disallowed.where) {
-      injectDynamicValues(disallowed.where, user, query, selected_data_fields);
+      injectDynamicValues(disallowed.where, user, query, tableMap, default_table_name, selected_data_fields);
     }
   }
 

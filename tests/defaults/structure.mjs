@@ -5,11 +5,11 @@ export default {
         "type": "GET",
         "user": {
           "allow": {
-            "field": "name",
+            "field": "*",
             "where": {
               "and": [
                 {
-                  "field": "users.have_access",
+                  "field": "have_access",
                   "operator": "=",
                   "value": 1
                 },
@@ -19,14 +19,6 @@ export default {
                   "value": 1
                 }
               ]
-            }
-          },
-          "deny": {
-            "field": "have_access",
-            "where": {
-              "field": "users.id",
-              "operator": "!=",
-              "value": "$user.id"
             }
           }
         }

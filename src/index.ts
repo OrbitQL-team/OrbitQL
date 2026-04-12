@@ -1,6 +1,7 @@
 import { Database, WhereCondition, StructuredQuery, Structure } from "./types.ts";
 import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method } from "./drizzle.ts";
+import { getTableName } from "drizzle-orm";
 
 /*───────────────────────────────────────────────
   MAIN QUERY BUILDER
@@ -49,7 +50,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     selected_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
   }
 
-  const aclWhere = buildAclWhere(allowed, disallowed, user, query)
+  const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, getTableName(tableStruct.table));
 
   let combinedWhere: WhereCondition | undefined;
   if (query.where && aclWhere) {
@@ -70,7 +71,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     if(!has_been_accepted) throw new Error("Not allowed")
   }
 
-  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, query, tableStruct.table) : false
+  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, query, tableStruct.table, getTableName(tableStruct.table)) : false
 
   const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
 
@@ -82,7 +83,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       return await put_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit)
     }
     case 'POST': {
-      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, allowed, disallowed)
+      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, tableMap, getTableName(tableStruct.table), selected_data_fields, allowed, disallowed)
     }
     case 'DELETE': {
       return await delete_method(db, pre_post_select_fields, tableStruct, built_where, limit)

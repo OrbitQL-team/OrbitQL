@@ -281,68 +281,129 @@ export function stripPrefixes(input: any): any {
     return input;
 }
 
-export function resolveCustomValue(value: any, user: any, query: StructuredQuery): any {
-    if (!value || typeof value !== "string") return value;
+export function resolveCustomValue(
+  value: any,
+  user: any,
+  query: StructuredQuery,
+  tableMap: Record<string, any>,
+  default_table_name: string,
+): any {
+  if (!value) return value;
 
-    function is_undefined(value:any) {
-        if(value == undefined) throw new Error(`Undefined value not supported`);
-        return value
+  function is_undefined(v: any) {
+    if (v === undefined) throw new Error(`Undefined value not supported`);
+    return v;
+  }
+
+  // ------------------------
+  // Handle object: { $col: ... }
+  // ------------------------
+  if (typeof value === "object" && "$col" in value) {
+    const colRef = value.$col;
+
+    if (typeof colRef !== "string") {
+      throw new Error(`Invalid $col reference`);
     }
 
-    // $user.X → from user object
-    let match = value.match(/^\$user\.(\w+)$/);
-    if (match && user) {
-        return is_undefined(user[match[1]])
-    };
-
-    // $data.X → from query.data
-    match = value.match(/^\$data\.(.+)$/);
-    if (match && query?.data) {
-        const key = match[1]; // e.g., "attendances.type"
-        // exact match in data
-        if (key in query.data) return is_undefined(query.data[key])
-        // fallback: try dot-splitting (e.g., 'attendances.type' → query.data['attendances']['type'])
-        const parts = key.split(".");
-        let val: any = query.data;
-        for (const part of parts) {
-            if (val && part in val) val = val[part];
-            else return '';
-        }
-        return is_undefined(val);
+    if (!tableMap) {
+      throw new Error(`tableMap is required to resolve $col`);
     }
 
-    return is_undefined(value);
+    let vTbl: string;
+    let vCol: string;
+
+    if (colRef.includes(".")) {
+      [vTbl, vCol] = colRef.split(".");
+    } else {
+      if (!default_table_name) {
+        throw new Error(
+          `Column '${colRef}' missing table and no default_table_name provided`
+        );
+      }
+      vTbl = default_table_name;
+      vCol = colRef;
+    }
+
+    const vColumn = tableMap[vTbl]?.[vCol];
+    if (!vColumn) {
+      throw new Error(`Column '${colRef}' not found`);
+    }
+
+    return vColumn;
+  }
+
+  // ------------------------
+  // Non-string → return as-is
+  // ------------------------
+  if (typeof value !== "string") return value;
+
+  // ------------------------
+  // $user.X
+  // ------------------------
+  let match = value.match(/^\$user\.(\w+)$/);
+  if (match && user) {
+    return is_undefined(user[match[1]]);
+  }
+
+  // ------------------------
+  // $data.X
+  // ------------------------
+  match = value.match(/^\$data\.(.+)$/);
+  if (match && query?.data) {
+    const key = match[1];
+
+    // direct match
+    if (key in query.data) return is_undefined(query.data[key]);
+
+    // nested resolution
+    const parts = key.split(".");
+    let val: any = query.data;
+
+    for (const part of parts) {
+      if (val && part in val) val = val[part];
+      else return '';
+    }
+
+    return is_undefined(val);
+  }
+
+  // ------------------------
+  // fallback
+  // ------------------------
+  return is_undefined(value);
 }
 
 export function injectDynamicValues(
     cond: WhereCondition | SubqueryCondition,
     user: any,
     query: StructuredQuery,
+    tableMap: Record<string, any>,
+    default_table_name: string,
     safe?: Record<string, any>
 ): WhereCondition | SubqueryCondition {
     if ("and" in cond && Array.isArray(cond.and)) {
         const newCond = { ...cond };
         newCond.and = cond.and.map(c =>
-            injectDynamicValues(c, user, query, safe) as WhereCondition
+            injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
         );
         return newCond;
     }else if ("or" in cond && Array.isArray(cond.or)) {
         const newCond = { ...cond };
         newCond.or = cond.or.map(c =>
-            injectDynamicValues(c, user, query, safe) as WhereCondition
+            injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
         );
         return newCond;
     } else if ("not" in cond && cond.not) {
         const newCond = { ...cond };
-        newCond.not = injectDynamicValues(newCond.not, user, query, safe) as WhereCondition
+        newCond.not = injectDynamicValues(newCond.not, user, query, tableMap, default_table_name, safe) as WhereCondition
         return newCond;
     } else if ("if" in cond && cond.if && cond.if.when) {
         const newCond = { ...cond };
-        newCond.if.when = injectDynamicValues(newCond.if.when, user, query, safe) as WhereCondition
+        newCond.if.when = injectDynamicValues(newCond.if.when, user, query, tableMap, default_table_name, safe) as WhereCondition
         return newCond;
     } else if ("field" in cond && cond.field) {
         // resolve placeholder
-        const resolvedValue = resolveCustomValue(cond.value, user, query)
+        const resolvedValue = resolveCustomValue(cond.value, user, query, tableMap, default_table_name)
 
         // if safe object is provided, also populate it
         if (safe) safe[cond.field] = resolvedValue;
@@ -351,7 +412,7 @@ export function injectDynamicValues(
         if (typeof cond.value === "object" && "select" in cond.value && cond.value.where) {
             const newCond = { ...cond, value: { ...cond.value } };
             newCond.value.where = cond.value.where.map((c: WhereCondition) =>
-                injectDynamicValues(c, user, query, safe) as WhereCondition
+                injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
             );
             return newCond;
         }

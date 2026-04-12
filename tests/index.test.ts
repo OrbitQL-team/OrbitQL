@@ -52,10 +52,13 @@ it("should measure build and execute performance", async () => {
   // Measure execution time
   const execStart = performance.now();
 
-  await expect(built_query.execute()).resolves.not.toThrow();
+  const result = await built_query.execute();
 
   const execTime = performance.now() - execStart;
 
+  console.log("Query result:", result);
   console.log(`Build time: ${buildTime.toFixed(2)} ms`);
   console.log(`Execute time: ${execTime.toFixed(2)} ms`);
+
+  expect(result).toBeDefined();
 });
