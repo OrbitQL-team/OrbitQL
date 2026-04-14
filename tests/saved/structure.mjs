@@ -5,13 +5,18 @@ export default {
         "type": "GET",
         "user": {
           "allow": {
-            "field": "*",
+            "field": [
+              "id",
+              "name",
+              "email",
+              "surname"
+            ],
             "where": {
               "and": [
                 {
-                  "field": "have_access",
+                  "field": "id",
                   "operator": "=",
-                  "value": 1
+                  "value": "$user.id"
                 },
                 {
                   "left_value": "$user.have_access",
@@ -21,6 +26,17 @@ export default {
               ]
             }
           }
+        },
+        "admin": {
+          "allowed": {
+            "field": "*",
+            "where": {
+              "left_value": "$user.have_access",
+              "operator": "=",
+              "value": 1
+            }
+          },
+          "disallowed": ""
         }
       },
       {
@@ -28,30 +44,54 @@ export default {
         "user": {
           "allowed": {
             "field": [
-              "*"
+              "name",
+              "surname"
             ],
             "where": {
-              "if": {
-                "when": {
-                  "left_value": "$data.name",
-                  "operator": "IS NOT NULL"
+              "and": [
+                {
+                  "if": {
+                    "value": "$data.name",
+                    "operator": "IS NOT NULL"
+                  },
+                  "do": true,
+                  "else": false
                 },
-                "do": true,
-                "else": false
-              }
+                {
+                  "if": {
+                    "value": "$data.surname",
+                    "operator": "IS NOT NULL"
+                  },
+                  "do": true,
+                  "else": false
+                },
+                {
+                  "field": "id",
+                  "operator": "=",
+                  "value": "$user.id"
+                },
+                {
+                  "left_value": "$user.have_access",
+                  "operator": "=",
+                  "value": 1
+                }
+              ]
             }
           },
-          "disallowed": {
-            "field": [
-              "id",
-              "have_access"
-            ],
+          "disallowed": [
+            "*"
+          ]
+        },
+        "admin": {
+          "allowed": {
+            "field": "*",
             "where": {
               "left_value": "$user.have_access",
               "operator": "=",
-              "value": 0
+              "value": 1
             }
-          }
+          },
+          "disallowed": ""
         }
       },
       {

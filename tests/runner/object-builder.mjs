@@ -1,10 +1,5 @@
 import prompts from 'prompts';
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs/promises';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { save_to_file } from './save-to-file.mjs';
 
 /**
  * Build a dynamic JSON object using prompts.
@@ -78,8 +73,7 @@ export async function buildObject(initialName = 'Object', defaultFilePath = null
         console.log('No default file path provided.');
         continue;
       }
-      const resolvedPath = path.resolve(__dirname, defaultFilePath);
-      await fs.writeFile(resolvedPath, `export default ${JSON.stringify(result, null, 2)};`, 'utf-8');
+      let resolvedPath = await save_to_file(result, defaultFilePath)
       console.log(`Saved as default: ${resolvedPath}`);
       await new Promise((r) => setTimeout(r, 1000)); // pause to show message
 

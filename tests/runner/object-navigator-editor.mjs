@@ -1,10 +1,5 @@
 import prompts from "prompts";
-import * as path from 'path';
-import { fileURLToPath } from 'url';
-import fs from 'fs/promises';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { save_to_file } from "./save-to-file.mjs";
 
 /**
  * Interactive CLI JSON editor (objects + arrays)
@@ -238,12 +233,9 @@ export async function navigate_object(initialName = "Object", file_path, default
     }
 
     if (action.type === "save-default") {
-        const resolvedPath = path.resolve(__dirname, file_path);
-        //save to default file
-        await fs.writeFile(resolvedPath, `export default ${JSON.stringify(root, null, 2)};`, 'utf-8')
-
-        console.log(`Saved as default: ${resolvedPath}`);
-        await new Promise((r) => setTimeout(r, 1000)); // pause to show message
+      let resolvedPath = await save_to_file(root, file_path)
+      console.log(`Saved as default: ${resolvedPath}`);
+      await new Promise((r) => setTimeout(r, 1000)); // pause to show message
     }
   }
 }

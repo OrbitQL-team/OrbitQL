@@ -50,6 +50,8 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     selected_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
   }
 
+  if(Object.keys(selected_data_fields).length == 0) throw new Error("No fields allowed");
+
   const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, getTableName(tableStruct.table));
 
   let combinedWhere: WhereCondition | undefined;
