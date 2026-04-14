@@ -36,7 +36,8 @@ export default {
               "value": 1
             }
           },
-          "disallowed": ""
+          "disallowed": "",
+          "limit": 1
         }
       },
       {

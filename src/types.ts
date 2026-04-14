@@ -85,12 +85,17 @@ export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 
 // Endpoint structure
 export type Endpoint = {
+  // Explicit properties
   type: EndpointType;
+  limit?: number;
   order_by?: string[];
   direction?: "asc" | "desc";
-  [role: string]:
-    | RolePermissions
-    | typeof NONE
+  
+  // Dynamic role properties
+  [role: string]: 
+    | RolePermissions 
+    | typeof NONE 
+    | number
     | string[]
     | "asc"
     | "desc"

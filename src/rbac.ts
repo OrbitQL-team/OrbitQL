@@ -31,7 +31,7 @@ export function resolve_fields(
         const tableStruct = structure[default_table];
         if (!tableStruct) throw new Error(`Unknown table '${default_table}'`);
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        const endpoint:any = tableStruct.endpoints.find(e => e.type === type);
         if (!endpoint) throw new Error(`${type} not allowed on ${default_table}`);
 
         const rolePermissions = endpoint[role];
@@ -78,7 +78,7 @@ export function resolve_fields(
         const tableStruct = structure[table];
         if (!tableStruct) throw new Error(`Unknown table '${table}'`);
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        const endpoint:any = tableStruct.endpoints.find(e => e.type === type);
         if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
 
         const rolePermissions = endpoint[role];
@@ -162,7 +162,7 @@ export function resolve_data(
             throw new Error(`Unknown table '${table}'`);
         }
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        const endpoint:any = tableStruct.endpoints.find(e => e.type === type);
         if (!endpoint) {
             throw new Error(`${type} not allowed on ${table}`);
         }
