@@ -72,6 +72,9 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     limit = rolePermissions.limit
   }
 
+  const return_before = rolePermissions.return_before ?? false
+  const return_after = rolePermissions.return_after ?? false
+
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
     const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, query, tableStruct.table)
     if(!has_been_accepted) throw new Error("Not allowed")
@@ -86,13 +89,13 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       return await get_method(db, query, user, structure, endpoint, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
     }
     case 'PUT': {
-      return await put_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit)
+      return await put_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit, return_before, return_after)
     }
     case 'POST': {
-      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, tableMap, getTableName(tableStruct.table), selected_data_fields, allowed, disallowed)
+      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, tableMap, getTableName(tableStruct.table), selected_data_fields, allowed, disallowed, return_after)
     }
     case 'DELETE': {
-      return await delete_method(db, pre_post_select_fields, tableStruct, built_where, limit)
+      return await delete_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, built_where, limit, return_before)
     }
     default: {
       throw new Error("Invalid operation");

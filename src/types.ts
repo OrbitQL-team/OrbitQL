@@ -115,7 +115,16 @@ type DisallowedAliases =
 
 type Limit = { limit?: number };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit;
+type ReturnBeforeStatus = { return_before?: boolean };
+type ReturnAfterStatus = { return_after?: boolean };
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus;
+
+export type Response = {
+  before: any,
+  response: any,
+  after:any
+}
 
 export type FieldPermission =
   | string | string[]
