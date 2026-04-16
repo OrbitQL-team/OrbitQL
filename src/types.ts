@@ -87,7 +87,6 @@ export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 export type Endpoint = {
   // Explicit properties
   type: EndpointType;
-  limit?: number;
   order_by?: string[];
   direction?: "asc" | "desc";
   
@@ -95,7 +94,6 @@ export type Endpoint = {
   [role: string]: 
     | RolePermissions 
     | typeof NONE 
-    | number
     | string[]
     | "asc"
     | "desc"
@@ -108,14 +106,16 @@ export type Endpoint = {
 /* -------------------------------------------------------------------------- */
 
 type AllowedAliases =
-  | { allowed: FieldPermission }
-  | { allow: FieldPermission };
+  | { allowed: FieldPermission; allow?: never }
+  | { allow: FieldPermission; allowed?: never };
 
 type DisallowedAliases =
-  | { disallowed?: FieldPermission }
-  | { deny?: FieldPermission };
+  | { disallowed?: FieldPermission; deny?: never }
+  | { deny?: FieldPermission; disallowed?: never };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases;
+type Limit = { limit?: number };
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit;
 
 export type FieldPermission =
   | string | string[]
@@ -173,8 +173,8 @@ export type StructuredQuery = {
 export type SimpleCondition = {
   field?: string;
   operator?: SafeOperator;
-  left_value?: any;
-  value?: any;
+  left_value?: any; //supports $data - $user - $col - any
+  value?: any; //supports $data - $user - $col - any
 };
 
 export type Join = {
@@ -224,7 +224,7 @@ export type WhereCondition = SimpleCondition | NestedCondition;
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
   field?: string;
-  left_value?: any;
+  left_value?: any; //supports $data - $user - $col - any
   operator: "IN";
   value: {
     select: string;

@@ -11,7 +11,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const tableStruct = structure[tableName];
   if (!tableStruct) throw new Error(`Table ${tableName} not found`);
 
-  const endpoint:any = tableStruct.endpoints.find((e:any) => e.type === query.type);
+  const endpoint = tableStruct.endpoints.find((e:any) => e.type === query.type);
   if (!endpoint) throw new Error(`${query.type} not allowed on ${tableName}`);
 
   if(!endpoint[role]) {
@@ -68,8 +68,8 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   let limit = null
   if(query.limit) limit = query.limit
 
-  if(endpoint.limit && (limit === null || limit > endpoint.limit)) {
-    limit = endpoint.limit
+  if(rolePermissions.limit && (limit === null || limit > rolePermissions.limit)) {
+    limit = rolePermissions.limit
   }
 
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
