@@ -14,7 +14,7 @@ import {
   getTableName
 } from "drizzle-orm";
 import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint } from "./types.ts";
-import { injectDynamicValues, resolveCustomValue, stripPrefixes } from "./rbac";
+import { injectDynamicValues, is_op_type, resolveCustomValue, stripPrefixes } from "./rbac";
 import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
@@ -154,17 +154,17 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name);
   }
   
-  if("start" in cond && "end" in cond && cond.operator && cond.operator.toUpperCase() == "BETWEEN") {
+  if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
     start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name);
     end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name);
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
-  } else if(cond.operator && cond.operator.toUpperCase() == "BETWEEN" && !("start" in cond && "end" in cond)) {
+  } else if(is_op_type(cond, "BETWEEN") && !("start" in cond && "end" in cond)) {
     throw new Error("Between operator must have 'start' and 'end' fields");
   }
 
   // Subquery IN
-  if(cond.operator && cond.operator.toUpperCase() === "IN" && (left != null && left !=undefined)) {
+  if(is_op_type(cond, "IN") && (left != null && left !=undefined)) {
     if (right && typeof right === "object" && "select" in right) {
       const subTable = tableMap[right.from];
       if (!subTable) throw new Error(`Table '${right.from}' not found`);
@@ -184,12 +184,12 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
 
     // Normal IN array
     if (Array.isArray(right)) return inArray(left, right);
-  }else if(cond.operator && cond.operator.toUpperCase() === "IN") {
+  }else if(is_op_type(cond, "IN")) {
     return sql`false`
   }
 
   // Subquery EXISTS
-  if (cond.operator && cond.operator.toUpperCase() === "EXISTS") {
+  if (is_op_type(cond, "EXISTS")) {
     let subTable = null
     let subColumn = null
     let subWhere = null
@@ -227,9 +227,11 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if(subTable && subColumn && subWhere) return exists(db.select({ val: subColumn }).from(subTable).where(subWhere));
   }
 
+  const operator = cond.operator ?? cond.op
+
   // Literal operators
-  if(cond.operator) {
-    switch (cond.operator.toUpperCase()) {
+  if(operator) {
+    switch (operator.toUpperCase()) {
       case "=": {
         if(right == null) return isNull(left)
         else return eq(left, right)
@@ -248,11 +250,11 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       case "NOT ILIKE": return notIlike(left, right);
       case "IS": {
         if(right == null) return isNull(left)
-        else throw new Error(`Unsupported operator: ${cond.operator}`);
+        else throw new Error(`Unsupported operator: ${operator}`);
       };
       case "IS NOT": {
         if(right == null) return isNotNull(left)
-        else throw new Error(`Unsupported operator: ${cond.operator}`);
+        else throw new Error(`Unsupported operator: ${operator}`);
       };
       case "IS NULL": return isNull(left);
       case "IS NOT NULL": return isNotNull(left);
@@ -261,7 +263,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       }
     }
   }
-  throw new Error(`Unsupported operator: ${cond.operator}`);
+  throw new Error(`Unsupported operator: ${operator}`);
 }
 
 

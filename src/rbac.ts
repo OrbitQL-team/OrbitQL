@@ -1,4 +1,4 @@
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SafeOperator, SimpleCondition } from "./types.ts";
 
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
   const aliased: Record<string, any> = {};
@@ -371,6 +371,10 @@ export function resolveCustomValue(
   // fallback
   // ------------------------
   return is_undefined(value);
+}
+
+export function is_op_type(condition:SimpleCondition, text:string) {
+    return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
 }
 
 export function injectDynamicValues(

@@ -25,9 +25,9 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   
   const allowed =
       'allowed' in rolePermissions
-          ? rolePermissions.allowed
+          ? rolePermissions.allowed ?? []
           : 'allow' in rolePermissions
-          ? rolePermissions.allow
+          ? rolePermissions.allow ?? []
           : [];
 
   const disallowed =

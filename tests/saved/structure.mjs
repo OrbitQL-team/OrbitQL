@@ -15,12 +15,12 @@ export default {
               "and": [
                 {
                   "field": "id",
-                  "operator": "=",
+                  "op": "=",
                   "value": "$user.id"
                 },
                 {
                   "left_value": "$user.have_access",
-                  "operator": "=",
+                  "op": "=",
                   "value": 1
                 }
               ]
@@ -32,7 +32,7 @@ export default {
             "field": "*",
             "where": {
               "left_value": "$user.have_access",
-              "operator": "=",
+              "op": "=",
               "value": 1
             }
           },
@@ -53,7 +53,7 @@ export default {
                 {
                   "if": {
                     "value": "$data.name",
-                    "operator": "IS NOT NULL"
+                    "op": "IS NOT NULL"
                   },
                   "do": true,
                   "else": false
@@ -61,19 +61,19 @@ export default {
                 {
                   "if": {
                     "value": "$data.surname",
-                    "operator": "IS NOT NULL"
+                    "op": "IS NOT NULL"
                   },
                   "do": true,
                   "else": false
                 },
                 {
                   "field": "id",
-                  "operator": "=",
+                  "op": "=",
                   "value": "$user.id"
                 },
                 {
                   "left_value": "$user.have_access",
-                  "operator": "=",
+                  "op": "=",
                   "value": 1
                 }
               ]
@@ -88,7 +88,7 @@ export default {
             "field": "*",
             "where": {
               "left_value": "$user.have_access",
-              "operator": "=",
+              "op": "=",
               "value": 1
             }
           },

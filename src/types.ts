@@ -170,11 +170,14 @@ export type StructuredQuery = {
   [key: string]: any;
 };
 
-export type SimpleCondition = {
+type OperatorAlias =
+  | { operator: SafeOperator; op?: never }
+  | { op: SafeOperator; operator?: never };
+
+export type SimpleCondition = OperatorAlias & {
   field?: string;
-  operator?: SafeOperator;
-  left_value?: any; //supports $data - $user - $col - any
-  value?: any; //supports $data - $user - $col - any
+  left_value?: any;
+  value?: any;
 };
 
 export type Join = {
