@@ -1,7 +1,7 @@
-import { GelDatabase, GelTable, TableConfig as GelTableConfig } from "drizzle-orm/gel-core";
+import { GelDatabase } from "drizzle-orm/gel-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase, PgTable, TableConfig as PgTableConfig } from "drizzle-orm/pg-core";
+import { PgDatabase, TableConfig as PgTableConfig } from "drizzle-orm/pg-core";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -29,7 +29,7 @@ import { MySqlRemoteDatabase } from "drizzle-orm/mysql-proxy";
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import { ExpoSQLiteDatabase } from "drizzle-orm/expo-sqlite";
-import { MySqlTable, MySqlDatabase, TableConfig as MySqlTableConfig } from "drizzle-orm/mysql-core";
+import { MySqlDatabase } from "drizzle-orm/mysql-core";
 
 /* -------------------------------------------------------------------------- */
 /*                               DATABASE TYPES                               */
@@ -85,23 +85,49 @@ export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 
 // Endpoint structure
 export type Endpoint = {
+  // Explicit properties
   type: EndpointType;
   order_by?: string[];
   direction?: "asc" | "desc";
-  [role: string]: RolePermissions | string[] | "asc" | "desc" | EndpointType | undefined;
+  
+  // Dynamic role properties
+  [role: string]: 
+    | RolePermissions 
+    | typeof NONE 
+    | string[]
+    | "asc"
+    | "desc"
+    | EndpointType
+    | undefined;
 };
 
 /* -------------------------------------------------------------------------- */
 /*                                 ROLES                                      */
 /* -------------------------------------------------------------------------- */
 
-export type RolePermissions = {
-  allowed: FieldPermission;
-  disallowed: string[];
-};
+type AllowedAliases =
+  | { allowed: FieldPermission; allow?: never }
+  | { allow: FieldPermission; allowed?: never };
+
+type DisallowedAliases =
+  | { disallowed?: FieldPermission; deny?: never }
+  | { deny?: FieldPermission; disallowed?: never };
+
+type Limit = { limit?: number };
+
+type ReturnBeforeStatus = { return_before?: boolean };
+type ReturnAfterStatus = { return_after?: boolean };
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus;
+
+export type Response = {
+  before: any,
+  response: any,
+  after:any
+}
 
 export type FieldPermission =
-  | string[] | string
+  | string | string[]
   | {
       field: string | string[];
       where?: WhereCondition;
@@ -119,7 +145,16 @@ export const SAFE_OPERATORS = [
   ">",
   ">=",
   "LIKE",
-  "IN"
+  "NOT LIKE",
+  "ILIKE",
+  "NOT ILIKE",
+  "IS",
+  "IS NOT",
+  "IS NULL",
+  "IS NOT NULL",
+  "BETWEEN",
+  "IN",
+  "EXISTS"
 ] as const;
 
 export type SafeOperator = typeof SAFE_OPERATORS[number];
@@ -131,7 +166,7 @@ export type SafeOperator = typeof SAFE_OPERATORS[number];
 export type StructuredQuery = {
   table: keyof Structure;
   type: "GET" | "PUT" | "DELETE" | "POST";
-  select?: string[];
+  select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
   data?: Record<string, any>;
@@ -144,12 +179,14 @@ export type StructuredQuery = {
   [key: string]: any;
 };
 
-export type SimpleCondition = {
+type OperatorAlias =
+  | { operator: SafeOperator; op?: never }
+  | { op: SafeOperator; operator?: never };
+
+export type SimpleCondition = OperatorAlias & {
   field?: string;
-  operator?: SafeOperator;
   left_value?: any;
   value?: any;
-  conditions?: WhereCondition[];
 };
 
 export type Join = {
@@ -158,15 +195,24 @@ export type Join = {
   on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
 };
 
+type NotCondition = {
+  not: WhereCondition | SubqueryCondition;
+  and?: never;
+  or?: never;
+  if?: never;
+}
+
 // Nested AND/OR conditions
 type AndCondition = {
   and: (WhereCondition | SubqueryCondition)[];
+  not?: never;
   or?: never;
   if?: never;
 };
 
 type OrCondition = {
   or: (WhereCondition | SubqueryCondition)[];
+  not?: never;
   and?: never;
   if?: never;
 };
@@ -174,14 +220,15 @@ type OrCondition = {
 type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
-    do?: WhereCondition | SubqueryCondition;
-    else?: WhereCondition | SubqueryCondition;
+    do?: WhereCondition | SubqueryCondition | boolean;
+    else?: WhereCondition | SubqueryCondition | boolean;
   };
+  not?: never;
   and?: never;
   or?: never;
 };
 
-export type NestedCondition = AndCondition | OrCondition | IfCondition;
+export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
 export type WhereCondition = SimpleCondition | NestedCondition;
@@ -189,7 +236,7 @@ export type WhereCondition = SimpleCondition | NestedCondition;
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
   field?: string;
-  left_value?: any;
+  left_value?: any; //supports $data - $user - $col - any
   operator: "IN";
   value: {
     select: string;

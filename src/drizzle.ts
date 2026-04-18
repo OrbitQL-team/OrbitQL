@@ -6,11 +6,16 @@ import {
   isNotNull,
   exists,
   between,
-  type SQLWrapper
+  type SQLWrapper,
+  desc,
+  asc,
+  not,
+  notLike,
+  getTableName
 } from "drizzle-orm";
-import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure } from "./types.ts";
-import { injectDynamicValues, resolveCustomValue } from "./rbac";
-import { buildDrizzleQuery } from "./index.ts";
+import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response } from "./types.ts";
+import { injectDynamicValues, is_op_type, resolveCustomValue, stripPrefixes } from "./rbac";
+import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
   BUILD JOIN
@@ -25,7 +30,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
     // Support object with AND/OR inside 'on'
     if (j.on && (j.on.type === "and" || j.on.type === "or")) {
       // Complex condition
-      joinCondition = await buildWhere(db, j.on, tableMap, user, query, default_table);
+      joinCondition = await buildWhere(db, j.on, tableMap, user, query, default_table, getTableName(default_table));
     } else {
       // Simple key-value mapping
       const conditions: any[] = [];
@@ -59,7 +64,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
 /*───────────────────────────────────────────────
   BUILD WHERE
 ───────────────────────────────────────────────*/
-export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, query: StructuredQuery, default_table:any): Promise<any> {
+export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, query: StructuredQuery, default_table:any, default_table_name: string): Promise<any> {
   // Nested AND/OR
   if ('and' in cond || 'or' in cond) {
     let parts: SQLWrapper[] = [];
@@ -67,13 +72,13 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if ("and" in cond && cond.and) {
         parts = await Promise.all(
             cond.and.map((c) =>
-                buildWhere(db, c, tableMap, user, query, default_table)
+                buildWhere(db, c, tableMap, user, query, default_table, default_table_name)
             )
         );
     } else if ("or" in cond && cond.or) {
         parts = await Promise.all(
             cond.or.map((c) =>
-                buildWhere(db, c, tableMap, user, query, default_table)
+                buildWhere(db, c, tableMap, user, query, default_table, default_table_name)
             )
         );
     }
@@ -82,41 +87,42 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if(is_one_boolean) {
       const has_true = parts.some(part => typeof part === "boolean" && part === true)
       const has_false = parts.some(part => typeof part === "boolean" && part === false)
-      if('or' in cond && has_true) return true
-      else if('and' in cond && has_false) return false
-      else if('and' in cond && has_true) {
+      if('or' in cond && cond.or && has_true) return sql`true`
+      else if('and' in cond && cond.and && has_false) return sql`false`
+      else if('and' in cond && cond.and && has_true) {
         parts = parts.filter(part => !(typeof part === "boolean" && part === true))
-        if(parts.length == 1) return parts
+        console.log('PARTS: ', parts)
+        if(parts.length == 1) return sql`${parts}`;
       }
     }
     return 'and' in cond ? and(...parts) : or(...parts);
   }
-  else if('if' in cond && "when" in cond && cond.when) {
+  else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
     let condition:any = sql``
-    const when_condition = await if_condition(db, cond.when, tableMap, user, query, default_table)
-    if("do" in cond && cond.do) {
-      let do_condition
-      if(typeof cond.do == 'object') do_condition = await buildWhere(db, cond.do, tableMap, user, query, default_table)
-      else if(typeof cond.do == 'boolean') return cond.do
-      else if(cond.do) do_condition = sql`${cond.do}`
-
+    const when_condition = await if_condition(db, cond.if.when, tableMap, user, query, default_table)
+    console.log('RESULT OF WHEN', when_condition)
+    if("do" in cond.if) {
       if(when_condition) {
-        if(typeof do_condition == 'boolean') return do_condition
-        else condition.append(do_condition)
+        let do_condition
+        if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table, default_table_name)
+        else if(typeof cond.if.do == 'boolean') return cond.if.do
+        else if(cond.if.do) do_condition = sql`${cond.if.do}`
+
+        condition.append(do_condition)
       }
-      else if("else" in cond && cond.else) {
+      else if("else" in cond.if) {
+        console.log(typeof cond.if.else)
         let else_condition
-        if(typeof cond.else == 'object') else_condition = await buildWhere(db, cond.else, tableMap, user, query, default_table)
-        else if(typeof cond.else == 'boolean') else_condition = cond.else
-        else if(cond.else) else_condition = sql`${cond.else}`
+        if(typeof cond.if.else == 'object') else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table, default_table_name)
+        else if(typeof cond.if.else == 'boolean') return cond.if.else
+        else if(cond.if.else) else_condition = sql`${cond.if.else}`
           
-        if(!when_condition) {
-          if(typeof else_condition == 'boolean') return else_condition
-          else condition.append(else_condition)
-        }
+        condition.append(else_condition)
       }
     }
     return condition
+  }else if('not' in cond && cond.not) {
+    return not(await buildWhere(db, cond.not, tableMap, user, query, default_table, default_table_name))
   }
 
   // Determine left side
@@ -127,16 +133,15 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   let end: any
 
   if ("left_value" in cond) {
-    left = resolveCustomValue(cond.left_value, user, query);
-
-    if (left && typeof left === "object" && "$col" in left) {
-      const [vTbl, vCol] = left.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${left.$col}' not found`);
-      left = vColumn;
-    }
+    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name);
   } else if ("field" in cond && cond.field) {
-    const [tbl, col] = cond.field.split(".");
+    let tbl, col;
+    if(cond.field.includes(".")) {
+      [tbl, col] = cond.field.split(".");
+    }else {
+      col = cond.field;
+      tbl = default_table_name;
+    }
     const column = tableMap[tbl]?.[col];
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
@@ -145,44 +150,20 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   }
 
   if ("value" in cond) {
-    right = resolveCustomValue(cond.value, user, query);
-
-    // Handle $col references
-    if (right && typeof right === "object" && "$col" in right) {
-      const [vTbl, vCol] = right.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${right.$col}' not found`);
-      right = vColumn;
-    }
+    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name);
   }
   
-  if("start" in cond && "end" in cond && cond.operator && cond.operator.toUpperCase() == "BETWEEN") {
-    start = resolveCustomValue(cond.start, user, query);
-
-    if (start && typeof start === "object" && "$col" in start) {
-      const [vTbl, vCol] = start.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${start.$col}' not found`);
-      start = vColumn;
-    }
-
-    end = resolveCustomValue(cond.end, user, query);
-
-    // Handle $col references
-    if (end && typeof end === "object" && "$col" in end) {
-      const [vTbl, vCol] = end.$col.split(".");
-      const vColumn = tableMap[vTbl]?.[vCol];
-      if (!vColumn) throw new Error(`Column '${end.$col}' not found`);
-      end = vColumn;
-    }
+  if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
+    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name);
+    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name);
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
-  } else if(cond.operator && cond.operator.toUpperCase() == "BETWEEN" && !("start" in cond && "end" in cond)) {
+  } else if(is_op_type(cond, "BETWEEN") && !("start" in cond && "end" in cond)) {
     throw new Error("Between operator must have 'start' and 'end' fields");
   }
 
   // Subquery IN
-  if(cond.operator && cond.operator.toUpperCase() === "IN" && (left != null && left !=undefined)) {
+  if(is_op_type(cond, "IN") && (left != null && left !=undefined)) {
     if (right && typeof right === "object" && "select" in right) {
       const subTable = tableMap[right.from];
       if (!subTable) throw new Error(`Table '${right.from}' not found`);
@@ -192,7 +173,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         ? and(
             ...(await Promise.all(
               right.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table)
+                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
               )
             ))
           )
@@ -202,12 +183,12 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
 
     // Normal IN array
     if (Array.isArray(right)) return inArray(left, right);
-  }else if(cond.operator && cond.operator.toUpperCase() === "IN") {
-    return false
+  }else if(is_op_type(cond, "IN")) {
+    return sql`false`
   }
 
   // Subquery EXISTS
-  if (cond.operator && cond.operator.toUpperCase() === "EXISTS") {
+  if (is_op_type(cond, "EXISTS")) {
     let subTable = null
     let subColumn = null
     let subWhere = null
@@ -220,7 +201,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         ? and(
             ...(await Promise.all(
               left.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table)
+                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
               )
             ))
           )
@@ -235,7 +216,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         ? and(
             ...(await Promise.all(
               right.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table)
+                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
               )
             ))
           )
@@ -245,9 +226,11 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if(subTable && subColumn && subWhere) return exists(db.select({ val: subColumn }).from(subTable).where(subWhere));
   }
 
+  const operator = cond.operator ?? cond.op
+
   // Literal operators
-  if(cond.operator) {
-    switch (cond.operator.toUpperCase()) {
+  if(operator) {
+    switch (operator.toUpperCase()) {
       case "=": {
         if(right == null) return isNull(left)
         else return eq(left, right)
@@ -261,52 +244,74 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       case ">": return gt(left, right);
       case ">=": return gte(left, right);
       case "LIKE": return like(left, right);
+      case "NOT LIKE": return notLike(left, right);
       case "ILIKE": return ilike(left, right);
       case "NOT ILIKE": return notIlike(left, right);
       case "IS": {
         if(right == null) return isNull(left)
-        else throw new Error(`Unsupported operator: ${cond.operator}`);
+        else throw new Error(`Unsupported operator: ${operator}`);
       };
       case "IS NOT": {
         if(right == null) return isNotNull(left)
-        else throw new Error(`Unsupported operator: ${cond.operator}`);
+        else throw new Error(`Unsupported operator: ${operator}`);
       };
       case "IS NULL": return isNull(left);
       case "IS NOT NULL": return isNotNull(left);
       case "BETWEEN": {
-        console.log(cond, left, start, end)
         return between(left, start, end)
       }
     }
   }
-  throw new Error(`Unsupported operator: ${cond.operator}`);
+  throw new Error(`Unsupported operator: ${operator}`);
 }
 
 
 /*───────────────────────────────────────────────
   BUILD ACL WHERE
 ───────────────────────────────────────────────*/
-export function buildAclWhere(allowed: FieldPermission, user: any, query:StructuredQuery): WhereCondition | null {
+export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermission, user: any, query:StructuredQuery, tableMap: Record<string, any>, default_table_name: string): WhereCondition | null {
+  // Start with undefined
   let aclWhere: WhereCondition | null = null;
 
-  if(!Array.isArray(allowed)) {
-    if (typeof allowed === "object" && allowed.where) {
-      aclWhere = injectDynamicValues(JSON.parse(JSON.stringify(allowed.where)), user, query) as WhereCondition;
-    }
+  // Helper to inject if `where` exists
+  function injectIfExists(obj: any) {
+    return obj?.where ? (injectDynamicValues(obj.where, user, query, tableMap, default_table_name) as WhereCondition) : undefined;
+  }
+
+  const allowedWhere = injectIfExists(allowed);
+  const disallowedWhere = injectIfExists(disallowed);
+
+  if (allowedWhere && disallowedWhere) {
+    aclWhere = {
+      and: [
+        allowedWhere,
+        {
+          not: disallowedWhere
+        }
+      ],
+    };
+  } else if (allowedWhere) {
+    aclWhere = allowedWhere;
+  } else if (disallowedWhere) {
+    aclWhere = {
+      not: disallowedWhere
+    };
   }
 
   return aclWhere;
 }
 
-
-export async function run_after(db:Database, query:StructuredQuery, user:any, others:any, role:string, structure: Structure, is_recursived:boolean) {
-  if(query.after && Array.isArray(query.after) && query.after.length > 0 && !is_recursived) {
+/*───────────────────────────────────────────────
+  AFTER ROWS EXECUTIONS
+───────────────────────────────────────────────*/
+export async function run_after(db:Database, query:StructuredQuery, user:any, others:any, role:string, structure: Structure) {
+  if(query.after && Array.isArray(query.after) && query.after.length > 0) {
     let afterQueries:any[] = []
     for(let after_query of query.after) {
       let returned_query: { execute: () => Promise<any> };
       try {
-        // await here because buildDrizzleQuery returns a Promise
-        returned_query = await buildDrizzleQuery(db, after_query, user, role, structure, true);
+        // await here because build_query returns a Promise
+        returned_query = await build_query(db, after_query, user, role, structure);
       } catch (e) {
         console.error("Error building query:", e);
         continue;
@@ -327,13 +332,16 @@ export async function run_after(db:Database, query:StructuredQuery, user:any, ot
   return others
 }
 
+/*───────────────────────────────────────────────
+  IF CONDITION
+───────────────────────────────────────────────*/
 export async function if_condition(db:Database, where_condtion:WhereCondition, table_map:any, user:any, query:StructuredQuery, default_table:any):Promise<boolean> {
-  let where = await buildWhere(db, where_condtion, table_map, user, query, default_table)
+  let where = await buildWhere(db, where_condtion, table_map, user, query, default_table, getTableName(default_table));
 
   // Start empty SQL object
   const need_table:boolean = has_field_or_col_attribute(where_condtion)
   
-  let check_query:any = sql`COALESCE(MAX(CASE WHEN`.append(where).append(sql`THEN 1 ELSE 0 END ), 0) AS RESULT`);
+  let check_query:any = sql`COALESCE(MAX(CASE WHEN `.append(where).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
 
   const from_table = need_table ? default_table : sql`(select 1) AS t`
 
@@ -354,6 +362,9 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   return Boolean(result);
 }
 
+/*───────────────────────────────────────────────
+  CHECKS FUNCTIONS
+───────────────────────────────────────────────*/
 export function has_field_or_col_attribute(
   input: any,
   insideFrom: boolean = false
@@ -391,4 +402,218 @@ export function is_allowed_empty(allowed: FieldPermission) {
     return is_allowed_empty(allowed.field)
   }
   return false
+}
+
+
+/*───────────────────────────────────────────────
+  ENDPOINT METHODS
+───────────────────────────────────────────────*/
+export async function get_method(db: Database, query: StructuredQuery, user:string, structure:Structure, endpoint:Endpoint, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+  const q = db.select(selected_data_fields).from(tableStruct.table);
+
+  if (query.join) await buildJoin(db, q, query.join, tableMap, user, query, tableStruct.table);
+
+  if (built_where) q.where(built_where);
+
+  if (query.group_by) {
+    q.groupBy(
+      ...query.group_by.map((f:string) => {
+        const [tbl, col] = f.includes(".") ? f.split(".") : [tableName, f];
+        return tableMap[tbl][col];
+      })
+    );
+  }
+
+  const orderByFields =
+    query.order_by ??
+    endpoint?.order_by ??
+    [];
+
+  // Resolve default direction
+  const defaultDirection =
+    query.direction ??
+    endpoint?.direction ??
+    "ASC";
+
+  if (orderByFields.length > 0) {
+    q.orderBy(
+      ...orderByFields.map((f: string) => {
+        // Allow "column DESC" syntax
+        const parts = f.trim().split(/\s+/);
+        const columnPart = parts[0];
+        const dir = (parts[1] ?? defaultDirection).toUpperCase();
+
+        // Resolve table + column
+        const [tbl, col] = columnPart.includes(".")
+          ? columnPart.split(".")
+          : [tableName, columnPart];
+
+        if (!tableMap[tbl]?.[col]) {
+          throw new Error(`Invalid order_by column: ${tbl}.${col}`);
+        }
+
+        return dir === "DESC"
+          ? desc(tableMap[tbl][col])
+          : asc(tableMap[tbl][col]);
+      })
+    );
+  }
+
+  if(limit != null) q.limit(limit)
+
+  console.log(q.toSQL().sql, q.toSQL().params)
+  return {
+    execute: async () => {
+      const rows = await q.execute();
+
+      // Only run `after` if defined
+      if (query.after && query.after.length > 0) {
+        return await run_after(db, query, user, { rows }, role, structure);
+      }
+
+      return rows;
+    }
+  };
+}
+
+export async function put_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, return_before: boolean, return_after:boolean) {
+  if (!query.data) throw new Error("PUT requires data");
+      
+  if (!Object.keys(selected_data_fields).length) throw new Error("No allowed fields for PUT");
+
+  const safe = stripPrefixes(selected_data_fields);
+
+  if (!Object.keys(safe).length) {
+    throw new Error("UPDATE has no writable fields");
+  }
+
+  return {
+    execute: async () => {
+      const result:Response = {} as Response
+      
+      if(return_before) {
+        const beforeRows = db.select(pre_post_select_fields).from(tableStruct.table)
+        
+        if(built_where) {
+          beforeRows.where(built_where)
+        }
+
+        if(limit != null) beforeRows.limit(limit)
+
+        result.before = await beforeRows.execute();
+      }
+
+      const update_query = db.update(tableStruct.table).set(safe)
+      
+      if(built_where) {
+        update_query.where(built_where)
+      }
+
+      if(limit != null) update_query.limit(limit)
+      
+      result.response = await update_query.execute();
+
+      if(return_after) {
+        const afterRows = db.select(pre_post_select_fields).from(tableStruct.table)
+      
+        if(built_where) {
+          afterRows.where(built_where)
+        }
+
+        if(limit != null) afterRows.limit(limit)
+        
+        result.after = await afterRows.execute();
+      }
+
+      return await run_after(db, query, user, result, role, structure)
+    }
+  };
+}
+
+export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, default_table_name: string, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission, return_after:boolean) {
+  if (!query.data) throw new Error("POST requires data");
+    
+  if (!Object.keys(selected_data_fields).length) {
+    throw new Error("No allowed fields for POST");
+  }
+  
+  // Inject dynamic values ($user, $data, etc)
+  if(!Array.isArray(allowed)) {
+    if (typeof allowed === "object" && allowed.where) {
+      injectDynamicValues(allowed.where, user, query, tableMap, default_table_name, selected_data_fields);
+    }
+  }
+
+  if(!Array.isArray(disallowed)) {
+    if (typeof disallowed === "object" && disallowed.where) {
+      injectDynamicValues(disallowed.where, user, query, tableMap, default_table_name, selected_data_fields);
+    }
+  }
+
+  // Remove table prefixes (attendances.xxx → xxx)
+  const safe = stripPrefixes(selected_data_fields);
+
+  return {
+    execute: async () => {
+      const result:Response = {} as Response
+      const response = await db
+        .insert(tableStruct.table)
+        .values(safe)
+        .execute();
+
+      result.response = response
+
+      if(return_after) {
+        let insertedRows = null
+        if(response && response[0]?.insertId) {
+          insertedRows = await db
+          .select(pre_post_select_fields)
+          .from(tableStruct.table)
+          .orderBy(desc(tableStruct.table.id))
+          .where(eq(tableStruct.table.id, response[0]?.insertId!))
+          .limit(1)
+          .execute();
+        }
+        result.after = insertedRows
+      }
+
+      result.before = null
+
+      return await run_after(db, query, user, result, role, structure)
+    }
+  };
+}
+
+export async function delete_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, built_where:any, limit:any, return_before: boolean){
+  return {
+    execute: async () => {
+      const result:Response = {} as Response
+      if(return_before) {
+        const toDelete = db.select(pre_post_select_fields).from(tableStruct.table)
+      
+        if(built_where) {
+          toDelete.where(built_where);
+        }
+
+        if(limit != null) toDelete.limit(limit)
+
+        const toDeleteRows = await toDelete.execute();
+        result.before = toDeleteRows
+      }
+
+      const delete_query = db.delete(tableStruct.table)
+      
+      if(built_where) {
+        delete_query.where(built_where);
+      }
+
+      if(limit != null) delete_query.limit(limit)
+      
+      result.response = await delete_query.execute();
+      
+      result.after
+
+      return await run_after(db, query, user, result, role, structure)
+    }
+  };
 }

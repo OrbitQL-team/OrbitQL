@@ -1,4 +1,4 @@
-import { Database, WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SafeOperator, SimpleCondition } from "./types.ts";
 
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
   const aliased: Record<string, any> = {};
@@ -18,12 +18,15 @@ export function resolve_fields(
     tableMap: Record<string, Record<string, any>>
 ) {
     const allowed_fields: Record<string, any> = {};
-    if (!fields || (typeof fields !== "object" && !Array.isArray(fields))) return allowed_fields;
+    console.log(fields)
+    if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) return allowed_fields;
 
-    const keys = Array.isArray(fields) ? fields : Object.keys(fields);
+    const keys = Array.isArray(fields) ? fields : fields;
+
+    console.log('keys: ',keys)
 
     // Handle ["*"] wildcard
-    if (keys.length === 1 && keys[0] === "*") {
+    if ((keys == "*" && typeof keys == 'string') || (keys.length === 1 && keys[0] === "*")) {
         // expand to all allowed fields of the default_table
         const tableStruct = structure[default_table];
         if (!tableStruct) throw new Error(`Unknown table '${default_table}'`);
@@ -36,8 +39,19 @@ export function resolve_fields(
             return allowed_fields;
         }
 
-        const allowed = rolePermissions.allowed ?? [];
-        const disallowed = rolePermissions.disallowed ?? [];
+        const allowed =
+            'allowed' in rolePermissions
+                ? rolePermissions.allowed
+                : 'allow' in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            'disallowed' in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : 'deny' in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
 
         for (const field of Object.keys(tableMap[default_table])) {
             if (!resolve_allowed_fields(field, allowed, disallowed)) {
@@ -51,7 +65,7 @@ export function resolve_fields(
         return allowed_fields;
     }
 
-    for (const entry of keys) {
+    function resolve_field(entry:string) {
         let table: string;
         let field: string;
 
@@ -69,11 +83,22 @@ export function resolve_fields(
 
         const rolePermissions = endpoint[role];
         if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
-            continue;
+            return;
         }
 
-        const allowed = rolePermissions.allowed ?? [];
-        const disallowed = rolePermissions.disallowed ?? [];
+        const allowed =
+            'allowed' in rolePermissions
+                ? rolePermissions.allowed
+                : 'allow' in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            'disallowed' in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : 'deny' in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
         if(field == "*") {
             for (const current_field of Object.keys(tableMap[table])) {
                 if (!resolve_allowed_fields(current_field, allowed, disallowed)) {
@@ -87,10 +112,19 @@ export function resolve_fields(
             if (!resolve_allowed_fields(field, allowed, disallowed)) {
                 console.log("TABLE: ", table)
                 console.log("REMOVED: ",field)
-                continue
+                return
             };
             if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
             allowed_fields[`${table}.${field}`] = tableMap[table][field];
+        }
+    }
+
+    if(typeof keys == 'string') {
+        resolve_field(keys)
+    }
+    if(Array.isArray(keys)) {
+        for (const entry of keys) {
+            resolve_field(entry)
         }
     }
 
@@ -138,8 +172,19 @@ export function resolve_data(
             continue;
         }
 
-        const allowed = rolePermissions.allowed ?? [];
-        const disallowed = rolePermissions.disallowed ?? [];
+        const allowed =
+            'allowed' in rolePermissions
+                ? rolePermissions.allowed
+                : 'allow' in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            'disallowed' in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : 'deny' in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
 
         // Authorization check (normalized field)
         if (!resolve_allowed_fields(field, allowed, disallowed)) {
@@ -161,28 +206,54 @@ export function resolve_data(
     return allowed_fields;
 }
 
-export function resolve_allowed_fields(field:string, allowed:FieldPermission, disallowed:string[]):boolean {
-    if (disallowed.includes(field)) return false;
+function matchesField(field: string, col: string, rule: string): boolean {
+    if (rule === "*") return true;
+    return rule === field || rule === col;
+}
 
-    // Extract column name without prefix
-    const col = field.includes(".") ? field.split(".")[1] : field;
+function matchesPermission(
+    field: string,
+    col: string,
+    permission?: FieldPermission
+): boolean {
+    if (!permission) return false;
 
-    if(Array.isArray(allowed)) {
-        for (const rule of allowed) {
-            if (rule === "*") return true;
+    if(typeof permission == 'string') {
+        return matchesField(field, col, permission);
+    }
 
-            // Legacy simple allowed list
-            if (rule === field || rule === col) return true;
+    if (Array.isArray(permission)) {
+        return permission.some(rule => matchesField(field, col, rule));
+    }
+
+    if (typeof permission === "object") {
+        const rule = permission.field;
+
+        if (Array.isArray(rule)) {
+            if (rule.includes("*")) return true;
+            return rule.some(r => matchesField(field, col, r));
         }
-    }else if (typeof allowed === "object") {
-        if (allowed.field === "*") return true;
-            else if(Array.isArray(allowed.field)) {
-        if(allowed.field.includes("*")) return true
-            return allowed.field.includes(field) || allowed.field.includes(col)
-        }else return allowed.field === col || allowed.field === field
+
+        return matchesField(field, col, rule);
     }
 
     return false;
+}
+
+export function resolve_allowed_fields(
+    field: string,
+    allowed?: FieldPermission,
+    disallowed?: FieldPermission
+): boolean {
+    const col = field.includes(".") ? field.split(".")[1] : field;
+
+    const isAllowed = matchesPermission(field, col, allowed);
+    if (!isAllowed) return false;
+
+    const isDisallowed = matchesPermission(field, col, disallowed);
+    if (isDisallowed) return false;
+
+    return true;
 }
 
 export function stripPrefixes(input: any): any {
@@ -210,47 +281,133 @@ export function stripPrefixes(input: any): any {
     return input;
 }
 
-export function resolveCustomValue(value: any, user: any, query: StructuredQuery): any {
-    if (!value || typeof value !== "string") return value;
+export function resolveCustomValue(
+  value: any,
+  user: any,
+  query: StructuredQuery,
+  tableMap: Record<string, any>,
+  default_table_name: string,
+): any {
+  if (!value) return value;
 
-    // $user.X → from user object
-    let match = value.match(/^\$user\.(\w+)$/);
-    if (match && user) return user[match[1]];
+  function is_undefined(v: any) {
+    if (v === undefined) throw new Error(`Undefined value not supported`);
+    return v;
+  }
 
-    // $data.X → from query.data
-    match = value.match(/^\$data\.(.+)$/);
-    if (match && query?.data) {
-        const key = match[1]; // e.g., "attendances.type"
-        // exact match in data
-        if (key in query.data) return query.data[key];
-        // fallback: try dot-splitting (e.g., 'attendances.type' → query.data['attendances']['type'])
-        const parts = key.split(".");
-        let val: any = query.data;
-        for (const part of parts) {
-            if (val && part in val) val = val[part];
-            else return null; // not found, return placeholder
-        }
-        return val;
+  // ------------------------
+  // Handle object: { $col: ... }
+  // ------------------------
+  if (typeof value === "object" && "$col" in value) {
+    const colRef = value.$col;
+
+    if (typeof colRef !== "string") {
+      throw new Error(`Invalid $col reference`);
     }
 
-    return value;
+    if (!tableMap) {
+      throw new Error(`tableMap is required to resolve $col`);
+    }
+
+    let vTbl: string;
+    let vCol: string;
+
+    if (colRef.includes(".")) {
+      [vTbl, vCol] = colRef.split(".");
+    } else {
+      if (!default_table_name) {
+        throw new Error(
+          `Column '${colRef}' missing table and no default_table_name provided`
+        );
+      }
+      vTbl = default_table_name;
+      vCol = colRef;
+    }
+
+    const vColumn = tableMap[vTbl]?.[vCol];
+    if (!vColumn) {
+      throw new Error(`Column '${colRef}' not found`);
+    }
+
+    return vColumn;
+  }
+
+  // ------------------------
+  // Non-string → return as-is
+  // ------------------------
+  if (typeof value !== "string") return value;
+
+  // ------------------------
+  // $user.X
+  // ------------------------
+  let match = value.match(/^\$user\.(\w+)$/);
+  if (match && user) {
+    return is_undefined(user[match[1]]);
+  }
+
+  // ------------------------
+  // $data.X
+  // ------------------------
+  match = value.match(/^\$data\.(.+)$/);
+  if (match && query?.data) {
+    const key = match[1];
+
+    // direct match
+    if (key in query.data) return is_undefined(query.data[key]);
+
+    // nested resolution
+    const parts = key.split(".");
+    let val: any = query.data;
+
+    for (const part of parts) {
+      if (val && part in val) val = val[part];
+      else return '';
+    }
+
+    return is_undefined(val);
+  }
+
+  // ------------------------
+  // fallback
+  // ------------------------
+  return is_undefined(value);
+}
+
+export function is_op_type(condition:SimpleCondition, text:string) {
+    return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
 }
 
 export function injectDynamicValues(
     cond: WhereCondition | SubqueryCondition,
     user: any,
     query: StructuredQuery,
+    tableMap: Record<string, any>,
+    default_table_name: string,
     safe?: Record<string, any>
 ): WhereCondition | SubqueryCondition {
-    if ("conditions" in cond && Array.isArray(cond.conditions)) {
+    if ("and" in cond && Array.isArray(cond.and)) {
         const newCond = { ...cond };
-        newCond.conditions = cond.conditions.map(c =>
-            injectDynamicValues(c, user, query, safe) as WhereCondition
+        newCond.and = cond.and.map(c =>
+            injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
         );
+        return newCond;
+    }else if ("or" in cond && Array.isArray(cond.or)) {
+        const newCond = { ...cond };
+        newCond.or = cond.or.map(c =>
+            injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
+        );
+        return newCond;
+    } else if ("not" in cond && cond.not) {
+        const newCond = { ...cond };
+        newCond.not = injectDynamicValues(newCond.not, user, query, tableMap, default_table_name, safe) as WhereCondition
+        return newCond;
+    } else if ("if" in cond && cond.if && cond.if.when) {
+        const newCond = { ...cond };
+        newCond.if.when = injectDynamicValues(newCond.if.when, user, query, tableMap, default_table_name, safe) as WhereCondition
         return newCond;
     } else if ("field" in cond && cond.field) {
         // resolve placeholder
-        const resolvedValue = resolveCustomValue(cond.value, user, query)
+        const resolvedValue = resolveCustomValue(cond.value, user, query, tableMap, default_table_name)
 
         // if safe object is provided, also populate it
         if (safe) safe[cond.field] = resolvedValue;
@@ -259,7 +416,7 @@ export function injectDynamicValues(
         if (typeof cond.value === "object" && "select" in cond.value && cond.value.where) {
             const newCond = { ...cond, value: { ...cond.value } };
             newCond.value.where = cond.value.where.map((c: WhereCondition) =>
-                injectDynamicValues(c, user, query, safe) as WhereCondition
+                injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
             );
             return newCond;
         }
@@ -268,4 +425,12 @@ export function injectDynamicValues(
     }
 
     return cond;
+}
+
+export function extractTableMap<T extends { table: any }>(
+  structure: Record<string, T>
+): Record<string, T["table"]> {
+  return Object.fromEntries(
+    Object.entries(structure).map(([key, value]) => [key, value.table])
+  );
 }
