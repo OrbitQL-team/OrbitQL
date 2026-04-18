@@ -86,7 +86,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   switch(query.type.toUpperCase()) {
     case 'GET': {
-      return await get_method(db, query, user, structure, endpoint, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
+      return await get_method(db, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
     }
     case 'PUT': {
       return await put_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit, return_before, return_after)

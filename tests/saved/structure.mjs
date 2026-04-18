@@ -37,7 +37,8 @@ export default {
             }
           },
           "disallowed": "",
-          "limit": 1
+          "order_by": ["name"],
+          "direction": "asc"
         }
       },
       {

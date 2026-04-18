@@ -87,18 +87,12 @@ export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 export type Endpoint = {
   // Explicit properties
   type: EndpointType;
-  order_by?: string[];
-  direction?: "asc" | "desc";
   
   // Dynamic role properties
   [role: string]: 
     | RolePermissions 
     | typeof NONE 
-    | string[]
-    | "asc"
-    | "desc"
-    | EndpointType
-    | undefined;
+    | any;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -117,8 +111,9 @@ type Limit = { limit?: number };
 
 type ReturnBeforeStatus = { return_before?: boolean };
 type ReturnAfterStatus = { return_after?: boolean };
+type OrderBy = { order_by?: string[]; direction?: "asc" | "desc" };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus;
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus & OrderBy;
 
 export type Response = {
   before: any,

@@ -13,7 +13,7 @@ import {
   notLike,
   getTableName
 } from "drizzle-orm";
-import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response, RolePermissions } from "./types.ts";
 import { injectDynamicValues, is_op_type, resolveCustomValue, stripPrefixes } from "./rbac";
 import build_query from "./index.ts";
 
@@ -408,7 +408,7 @@ export function is_allowed_empty(allowed: FieldPermission) {
 /*───────────────────────────────────────────────
   ENDPOINT METHODS
 ───────────────────────────────────────────────*/
-export async function get_method(db: Database, query: StructuredQuery, user:string, structure:Structure, endpoint:Endpoint, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+export async function get_method(db: Database, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
   const q = db.select(selected_data_fields).from(tableStruct.table);
 
   if (query.join) await buildJoin(db, q, query.join, tableMap, user, query, tableStruct.table);
@@ -426,13 +426,13 @@ export async function get_method(db: Database, query: StructuredQuery, user:stri
 
   const orderByFields =
     query.order_by ??
-    endpoint?.order_by ??
+    rolePermissions?.order_by ??
     [];
 
   // Resolve default direction
   const defaultDirection =
     query.direction ??
-    endpoint?.direction ??
+    rolePermissions?.direction ??
     "ASC";
 
   if (orderByFields.length > 0) {
