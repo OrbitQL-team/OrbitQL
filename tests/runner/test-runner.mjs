@@ -3,6 +3,7 @@
 import { spawn } from 'child_process';
 import { select } from './db-select.mjs';
 import { buildObject } from './object-builder.mjs';
+import { createConnection } from './db-connection.mjs';
 // import default_user from '../defaults/user.mjs'
 
 async function main() {
@@ -20,6 +21,11 @@ async function main() {
 
   do {
     db_select = await select();
+
+    //Create db connection
+    let db = await createConnection(db_select)
+
+    console.log(db)
 
     // Build object after DB selection
     const { result: user, previous } = await buildObject('User body');
