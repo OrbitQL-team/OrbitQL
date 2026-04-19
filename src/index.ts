@@ -1,12 +1,12 @@
-import { Database, WhereCondition, StructuredQuery, Structure } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions } from "./types.ts";
 import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap } from "./rbac.ts";
-import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method } from "./drizzle.ts";
+import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
 
 /*───────────────────────────────────────────────
   MAIN QUERY BUILDER
 ───────────────────────────────────────────────*/
-export default async function build_query(db: Database, query: StructuredQuery, user: any, role:string, structure: Structure) {
+export default async function build_query(db: Database, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
   const tableName = query.table;
   const tableStruct = structure[tableName];
   if (!tableStruct) throw new Error(`Table ${tableName} not found`);
@@ -84,21 +84,33 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
 
+  let result:any
+
+  if(endpoint.triggers && !options?.disable_triggers) run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
+
   switch(query.type.toUpperCase()) {
     case 'GET': {
-      return await get_method(db, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
+      result = await get_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
+      break;
     }
     case 'PUT': {
-      return await put_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit, return_before, return_after)
+      result = await put_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit, return_before, return_after)
+      break;
     }
     case 'POST': {
-      return await post_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, tableMap, getTableName(tableStruct.table), selected_data_fields, allowed, disallowed, return_after)
+      result = await post_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, tableMap, getTableName(tableStruct.table), selected_data_fields, allowed, disallowed, return_after)
+      break;
     }
     case 'DELETE': {
-      return await delete_method(db, query, user, structure, pre_post_select_fields, role, tableStruct, built_where, limit, return_before)
+      result = await delete_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, built_where, limit, return_before)
+      break;
     }
     default: {
       throw new Error("Invalid operation");
     }
   }
+
+  if(endpoint.triggers && !options?.disable_triggers) run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
+
+  return result
 }

@@ -39,7 +39,16 @@ export default {
           "disallowed": "",
           "order_by": ["name"],
           "direction": "asc"
-        }
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+
+            }
+          }
+        ]
       },
       {
         "type": "PUT",

@@ -13,7 +13,7 @@ import {
   notLike,
   getTableName
 } from "drizzle-orm";
-import { Database, WhereCondition, StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response, RolePermissions } from "./types.ts";
+import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response, RolePermissions, TriggerStructure, BuildWhereOptions } from "./types.ts";
 import { injectDynamicValues, is_op_type, resolveCustomValue, stripPrefixes } from "./rbac";
 import build_query from "./index.ts";
 
@@ -100,20 +100,24 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
     let condition:any = sql``
     const when_condition = await if_condition(db, cond.if.when, tableMap, user, query, default_table)
-    console.log('RESULT OF WHEN', when_condition)
     if("do" in cond.if) {
       if(when_condition) {
         let do_condition
-        if(typeof cond.if.do == 'object') do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table, default_table_name)
+        if(typeof cond.if.do == 'object') {
+          if(("type" in cond.if.do)) throw Error('Structured Query not allowed in where condition')
+          else do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table, default_table_name)
+        }
         else if(typeof cond.if.do == 'boolean') return cond.if.do
         else if(cond.if.do) do_condition = sql`${cond.if.do}`
 
         condition.append(do_condition)
       }
       else if("else" in cond.if) {
-        console.log(typeof cond.if.else)
         let else_condition
-        if(typeof cond.if.else == 'object') else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table, default_table_name)
+        if(typeof cond.if.else == 'object') {
+          if(("type" in cond.if.else)) throw Error('Structured Query not allowed in where condition')
+          else else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table, default_table_name)
+        }
         else if(typeof cond.if.else == 'boolean') return cond.if.else
         else if(cond.if.else) else_condition = sql`${cond.if.else}`
           
@@ -304,14 +308,19 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
 /*───────────────────────────────────────────────
   AFTER ROWS EXECUTIONS
 ───────────────────────────────────────────────*/
-export async function run_after(db:Database, query:StructuredQuery, user:any, others:any, role:string, structure: Structure) {
+export async function run_after(db:Database, options:BuildWhereOptions, query:StructuredQuery, user:any, others:any, role:string, structure: Structure) {
+  if(!options.after) return others
   if(query.after && Array.isArray(query.after) && query.after.length > 0) {
     let afterQueries:any[] = []
-    for(let after_query of query.after) {
+    const spliced_queries = typeof options.after == 'number' ? query.after.slice(0, options.after) : query.after;
+    for(let after_query of spliced_queries) {
       let returned_query: { execute: () => Promise<any> };
       try {
         // await here because build_query returns a Promise
-        returned_query = await build_query(db, after_query, user, role, structure);
+        returned_query = await build_query(db, after_query, user, role, structure, {
+          after: false,
+          ...options
+        });
       } catch (e) {
         console.error("Error building query:", e);
         continue;
@@ -408,7 +417,7 @@ export function is_allowed_empty(allowed: FieldPermission) {
 /*───────────────────────────────────────────────
   ENDPOINT METHODS
 ───────────────────────────────────────────────*/
-export async function get_method(db: Database, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+export async function get_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
   const q = db.select(selected_data_fields).from(tableStruct.table);
 
   if (query.join) await buildJoin(db, q, query.join, tableMap, user, query, tableStruct.table);
@@ -468,7 +477,7 @@ export async function get_method(db: Database, query: StructuredQuery, user:stri
 
       // Only run `after` if defined
       if (query.after && query.after.length > 0) {
-        return await run_after(db, query, user, { rows }, role, structure);
+        return await run_after(db, options, query, user, { rows }, role, structure);
       }
 
       return rows;
@@ -476,7 +485,7 @@ export async function get_method(db: Database, query: StructuredQuery, user:stri
   };
 }
 
-export async function put_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, return_before: boolean, return_after:boolean) {
+export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, return_before: boolean, return_after:boolean) {
   if (!query.data) throw new Error("PUT requires data");
       
   if (!Object.keys(selected_data_fields).length) throw new Error("No allowed fields for PUT");
@@ -525,12 +534,12 @@ export async function put_method(db: Database, query: StructuredQuery, user:stri
         result.after = await afterRows.execute();
       }
 
-      return await run_after(db, query, user, result, role, structure)
+      return await run_after(db, options, query, user, result, role, structure)
     }
   };
 }
 
-export async function post_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, default_table_name: string, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission, return_after:boolean) {
+export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, default_table_name: string, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission, return_after:boolean) {
   if (!query.data) throw new Error("POST requires data");
     
   if (!Object.keys(selected_data_fields).length) {
@@ -579,12 +588,12 @@ export async function post_method(db: Database, query: StructuredQuery, user:str
 
       result.before = null
 
-      return await run_after(db, query, user, result, role, structure)
+      return await run_after(db, options, query, user, result, role, structure)
     }
   };
 }
 
-export async function delete_method(db: Database, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, built_where:any, limit:any, return_before: boolean){
+export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, built_where:any, limit:any, return_before: boolean){
   return {
     execute: async () => {
       const result:Response = {} as Response
@@ -613,7 +622,51 @@ export async function delete_method(db: Database, query: StructuredQuery, user:s
       
       result.after
 
-      return await run_after(db, query, user, result, role, structure)
+      return await run_after(db, options, query, user, result, role, structure)
     }
   };
+}
+
+export async function run_triggers(db: Database, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, triggers:TriggerStructure[], after:boolean = false) {
+  const timing_filtered_triggers = triggers.filter((trigger)=>{
+    if(after && trigger.type.toUpperCase() == 'AFTER') {
+      return true
+    }else if(!after && trigger.type.toUpperCase() == 'BEFORE') {
+      return true
+    }
+    return false
+  })
+  for(let trigger of timing_filtered_triggers) {
+    if("if" in trigger.query) {
+      const condition = trigger.query.if
+      const when_condition = await if_condition(db, condition.when, tableMap, user, query, tableStruct.table)
+      if(when_condition && condition.do) {
+        if(typeof condition.do == "object" && "type" in condition.do) {
+          await build_query(db, condition.do, user, role, structure, {
+            disable_triggers: true,
+            after: false,
+            ...options
+          })
+        }
+      }else if(!when_condition && condition.else) {
+        if(typeof condition.else == "object" && "type" in condition.else) {
+          await build_query(db, condition.else, user, role, structure, {
+            disable_triggers: true,
+            after: false,
+            ...options
+          })
+        }
+      }
+    }
+    else if("set" in trigger.query) {
+      
+    }
+    else if("type" in trigger.query) {
+      await build_query(db, trigger.query, user, role, structure, {
+        disable_triggers: true,
+        after: false,
+        ...options
+      })
+    }
+  }
 }

@@ -81,12 +81,34 @@ export type TableStructure = {
   table: any;
 };
 
+export const BuildWhereOptionsDefaults:BuildWhereOptions = {
+  disable_triggers: false,
+  after: false
+}
+
+export type BuildWhereOptions = {
+  disable_triggers?: boolean,
+  after?: number | boolean
+}
+
+export type Set_Value = {
+  set: {
+    value: any;
+    when: WhereCondition | SubqueryCondition;
+  }
+}
+
 export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
+export type TriggerStructure = {
+  type: "BEFORE" | "AFTER";
+  query: StructuredQuery & IfCondition & Set_Value;
+}
 
 // Endpoint structure
 export type Endpoint = {
   // Explicit properties
   type: EndpointType;
+  triggers?: TriggerStructure[];
   
   // Dynamic role properties
   [role: string]: 
@@ -215,8 +237,8 @@ type OrCondition = {
 type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
-    do?: WhereCondition | SubqueryCondition | boolean;
-    else?: WhereCondition | SubqueryCondition | boolean;
+    do?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;
+    else?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;
   };
   not?: never;
   and?: never;

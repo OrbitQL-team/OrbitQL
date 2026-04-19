@@ -18,12 +18,9 @@ export function resolve_fields(
     tableMap: Record<string, Record<string, any>>
 ) {
     const allowed_fields: Record<string, any> = {};
-    console.log(fields)
     if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) return allowed_fields;
 
     const keys = Array.isArray(fields) ? fields : fields;
-
-    console.log('keys: ',keys)
 
     // Handle ["*"] wildcard
     if ((keys == "*" && typeof keys == 'string') || (keys.length === 1 && keys[0] === "*")) {
