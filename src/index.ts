@@ -1,5 +1,5 @@
 import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions } from "./types.ts";
-import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap } from "./rbac.ts";
+import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, injectDynamicValues, stripPrefixes, resolveCustomValue } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
 
@@ -41,18 +41,9 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   const tableMap = extractTableMap(structure);
 
-  let selected_data_fields: Record<string, any> = {};
+  const table_name = getTableName(tableStruct.table)
 
-  if(query.select) {
-    selected_data_fields = resolve_fields(structure, query.select, query.type, role, query.table, tableMap);
-    selected_data_fields = alias_selected_fields(selected_data_fields);
-  }else if(query.data) {
-    selected_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
-  }
-
-  if(Object.keys(selected_data_fields).length == 0) throw new Error("No fields allowed");
-
-  const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, getTableName(tableStruct.table));
+  const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, table_name);
 
   let combinedWhere: WhereCondition | undefined;
   if (query.where && aclWhere) {
@@ -80,13 +71,30 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     if(!has_been_accepted) throw new Error("Not allowed")
   }
 
-  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, query, tableStruct.table, getTableName(tableStruct.table)) : false
+  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, query, tableStruct.table, table_name) : false
 
   const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
 
+  let selected_data_fields: Record<string, any> = {};
+
+  if(query.select) {
+    selected_data_fields = resolve_fields(structure, query.select, query.type, role, query.table, tableMap);
+    selected_data_fields = alias_selected_fields(selected_data_fields);
+  }else if(query.data) {
+    selected_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
+    if (!Object.keys(selected_data_fields).length) {
+      throw new Error("No allowed fields");
+    }
+    selected_data_fields = stripPrefixes(selected_data_fields);
+  }
+
+  if(Object.keys(selected_data_fields).length == 0) throw new Error("No fields allowed");
+
   let result:any
 
-  if(endpoint.triggers && !options?.disable_triggers) run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
+  console.log(selected_data_fields)
+
+  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
 
   switch(query.type.toUpperCase()) {
     case 'GET': {
@@ -98,7 +106,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       break;
     }
     case 'POST': {
-      result = await post_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, tableMap, getTableName(tableStruct.table), selected_data_fields, allowed, disallowed, return_after)
+      result = await post_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, return_after)
       break;
     }
     case 'DELETE': {
@@ -110,7 +118,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     }
   }
 
-  if(endpoint.triggers && !options?.disable_triggers) run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
 
   return result
 }

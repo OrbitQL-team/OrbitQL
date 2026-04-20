@@ -203,38 +203,48 @@ export function resolve_data(
     return allowed_fields;
 }
 
-function matchesField(field: string, col: string, rule: string): boolean {
-    if (rule === "*") return true;
-    return rule === field || rule === col;
+function matchesField(field: string, col: string, rule: string): {result: boolean, matched_field: any} {
+    if (rule === "*") return {result: true, matched_field: rule};
+    else return {result: rule === field || rule === col, matched_field: rule}
 }
 
 function matchesPermission(
     field: string,
     col: string,
     permission?: FieldPermission
-): boolean {
-    if (!permission) return false;
+): {result: boolean, matched_field: any} {
+    if (!permission) return { result: false, matched_field: null };
 
     if(typeof permission == 'string') {
         return matchesField(field, col, permission);
     }
 
     if (Array.isArray(permission)) {
-        return permission.some(rule => matchesField(field, col, rule));
+        for(let rule of permission) {
+            const result = matchesField(field, col, rule)
+            console.log(result)
+            if(result.matched_field) return result
+        }
+        return { result: false, matched_field: null };
     }
 
     if (typeof permission === "object") {
         const rule = permission.field;
 
         if (Array.isArray(rule)) {
-            if (rule.includes("*")) return true;
-            return rule.some(r => matchesField(field, col, r));
+            if (rule.includes("*")) return { result: true, matched_field: "*" };
+            for(let r of rule) {
+                const result = matchesField(field, col, r)
+                console.log(result)
+                if(result.matched_field) return result
+            }
+            return { result: false, matched_field: null };
         }
 
         return matchesField(field, col, rule);
     }
 
-    return false;
+    return { result: false, matched_field: null };
 }
 
 export function resolve_allowed_fields(
@@ -244,11 +254,16 @@ export function resolve_allowed_fields(
 ): boolean {
     const col = field.includes(".") ? field.split(".")[1] : field;
 
-    const isAllowed = matchesPermission(field, col, allowed);
+    const { result: isAllowed } = matchesPermission(field, col, allowed);
+    console.log(field, col, allowed)
     if (!isAllowed) return false;
 
-    const isDisallowed = matchesPermission(field, col, disallowed);
-    if (isDisallowed) return false;
+    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, col, disallowed);
+    console.log(isAllowed, isDisallowed)
+    if (isDisallowed) {
+        if(isAllowed && disallowed_matched_field == "*") return true
+        else return false
+    }
 
     return true;
 }
@@ -278,6 +293,11 @@ export function stripPrefixes(input: any): any {
     return input;
 }
 
+export function is_undefined(v: any) {
+    if (v === undefined) throw new Error(`Undefined value not supported`);
+    return v;
+}
+
 export function resolveCustomValue(
   value: any,
   user: any,
@@ -286,11 +306,6 @@ export function resolveCustomValue(
   default_table_name: string,
 ): any {
   if (!value) return value;
-
-  function is_undefined(v: any) {
-    if (v === undefined) throw new Error(`Undefined value not supported`);
-    return v;
-  }
 
   // ------------------------
   // Handle object: { $col: ... }
@@ -405,7 +420,7 @@ export function injectDynamicValues(
     } else if ("field" in cond && cond.field) {
         // resolve placeholder
         const resolvedValue = resolveCustomValue(cond.value, user, query, tableMap, default_table_name)
-
+        console.log('RESOLVED: ', resolvedValue, " VALUE: ", cond.value)
         // if safe object is provided, also populate it
         if (safe) safe[cond.field] = resolvedValue;
 

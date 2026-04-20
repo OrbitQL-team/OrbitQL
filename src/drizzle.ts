@@ -14,7 +14,7 @@ import {
   getTableName
 } from "drizzle-orm";
 import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response, RolePermissions, TriggerStructure, BuildWhereOptions } from "./types.ts";
-import { injectDynamicValues, is_op_type, resolveCustomValue, stripPrefixes } from "./rbac";
+import { injectDynamicValues, is_op_type, is_undefined, resolveCustomValue, stripPrefixes } from "./rbac";
 import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
@@ -149,8 +149,11 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     const column = tableMap[tbl]?.[col];
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
+  } else if("value" in cond) {
+    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name);
   } else {
-    throw new Error("Condition must have 'field' or 'left_value'");
+    console.log(cond)
+    throw new Error("Condition must have 'field' or 'left_value' or 'value");
   }
 
   if ("value" in cond) {
@@ -350,7 +353,7 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   // Start empty SQL object
   const need_table:boolean = has_field_or_col_attribute(where_condtion)
   
-  let check_query:any = sql`COALESCE(MAX(CASE WHEN `.append(where).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
+  let check_query:any = sql`COALESCE(MAX(CASE WHEN `.append(sql`${where}`).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
 
   const from_table = need_table ? default_table : sql`(select 1) AS t`
 
@@ -361,7 +364,6 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   if(query.join) await buildJoin(db, builded_query, query.join, table_map, user, query, from_table)
 
   builded_query.limit(1)
-  console.log(builded_query.toSQL())
   const [rows]: any = await builded_query.execute()
 
   console.log(rows)
@@ -487,14 +489,6 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
 
 export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, return_before: boolean, return_after:boolean) {
   if (!query.data) throw new Error("PUT requires data");
-      
-  if (!Object.keys(selected_data_fields).length) throw new Error("No allowed fields for PUT");
-
-  const safe = stripPrefixes(selected_data_fields);
-
-  if (!Object.keys(safe).length) {
-    throw new Error("UPDATE has no writable fields");
-  }
 
   return {
     execute: async () => {
@@ -512,7 +506,7 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
         result.before = await beforeRows.execute();
       }
 
-      const update_query = db.update(tableStruct.table).set(safe)
+      const update_query = db.update(tableStruct.table).set(selected_data_fields)
       
       if(built_where) {
         update_query.where(built_where)
@@ -539,35 +533,15 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
   };
 }
 
-export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, default_table_name: string, selected_data_fields: Record<string, any>, allowed: FieldPermission, disallowed: FieldPermission, return_after:boolean) {
+export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, return_after:boolean) {
   if (!query.data) throw new Error("POST requires data");
-    
-  if (!Object.keys(selected_data_fields).length) {
-    throw new Error("No allowed fields for POST");
-  }
-  
-  // Inject dynamic values ($user, $data, etc)
-  if(!Array.isArray(allowed)) {
-    if (typeof allowed === "object" && allowed.where) {
-      injectDynamicValues(allowed.where, user, query, tableMap, default_table_name, selected_data_fields);
-    }
-  }
-
-  if(!Array.isArray(disallowed)) {
-    if (typeof disallowed === "object" && disallowed.where) {
-      injectDynamicValues(disallowed.where, user, query, tableMap, default_table_name, selected_data_fields);
-    }
-  }
-
-  // Remove table prefixes (attendances.xxx → xxx)
-  const safe = stripPrefixes(selected_data_fields);
 
   return {
     execute: async () => {
       const result:Response = {} as Response
       const response = await db
         .insert(tableStruct.table)
-        .values(safe)
+        .values(selected_data_fields)
         .execute();
 
       result.response = response
@@ -658,10 +632,33 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
         }
       }
     }
-    else if("set" in trigger.query) {
-      
+    if("set" in trigger.query) {
+      if(after) {
+        console.log('Set not available in after queries')
+        continue
+      }
+      const set = trigger.query.set
+      const table_name = getTableName(tableStruct.table)
+      let where = await buildWhere(db, set.when, tableMap, user, query, tableStruct.table, table_name);
+      const set_value = resolveCustomValue(set.value, user, query, tableMap, table_name)
+      const else_value = 
+        "else_value" in set ? 
+          resolveCustomValue(set.else_value, user, query, tableMap, table_name) : 
+          selected_data_fields[set.field] ? 
+            resolveCustomValue(selected_data_fields[set.field], user, query, tableMap, table_name) :
+            null
+      selected_data_fields[set.field] = sql`
+        CASE 
+          WHEN ${where} THEN ${set_value}
+          ${
+            else_value
+              ? sql`ELSE ${else_value}`
+              : sql.empty()
+          }
+        END
+      `;
     }
-    else if("type" in trigger.query) {
+    if("type" in trigger.query) {
       await build_query(db, trigger.query, user, role, structure, {
         disable_triggers: true,
         after: false,
@@ -669,4 +666,5 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
       })
     }
   }
+  return selected_data_fields
 }

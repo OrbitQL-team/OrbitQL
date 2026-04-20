@@ -40,15 +40,6 @@ export default {
           "order_by": ["name"],
           "direction": "asc"
         },
-        "triggers": [
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-
-            }
-          }
-        ]
       },
       {
         "type": "PUT",
@@ -62,19 +53,23 @@ export default {
               "and": [
                 {
                   "if": {
-                    "value": "$data.name",
-                    "op": "IS NOT NULL"
+                    "when": {
+                      "value": "$data.name",
+                      "op": "IS NOT NULL"
+                    },
+                    "do": true,
+                    "else": false
                   },
-                  "do": true,
-                  "else": false
                 },
                 {
                   "if": {
-                    "value": "$data.surname",
-                    "op": "IS NOT NULL"
+                    "when": {
+                      "value": "$data.surname",
+                      "op": "IS NOT NULL"
+                    },
+                    "do": true,
+                    "else": false
                   },
-                  "do": true,
-                  "else": false
                 },
                 {
                   "field": "id",
@@ -103,13 +98,33 @@ export default {
             }
           },
           "disallowed": ""
-        }
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "=",
+                  "value": "Daniele"
+                },
+                "value": "wela"
+              }
+            }
+          }
+        ]
       },
       {
         "type": "POST",
         "user": {
           "allowed": [],
           "disallowed": []
+        },
+        "admin": {
+          "allowed": "*"
         }
       },
       {

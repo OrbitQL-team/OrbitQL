@@ -93,8 +93,10 @@ export type BuildWhereOptions = {
 
 export type Set_Value = {
   set: {
-    value: any;
+    field: string;
     when: WhereCondition | SubqueryCondition;
+    value: any;
+    else_value?: any;
   }
 }
 
