@@ -75,26 +75,25 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
 
-  let selected_data_fields: Record<string, any> = {};
+  let user_select_data_fields: Record<string, any> = {};
 
   if(query.select) {
-    selected_data_fields = resolve_fields(structure, query.select, query.type, role, query.table, tableMap);
-    selected_data_fields = alias_selected_fields(selected_data_fields);
+    user_select_data_fields = resolve_fields(structure, query.select, query.type, role, query.table, tableMap);
+    user_select_data_fields = alias_selected_fields(user_select_data_fields);
   }else if(query.data) {
-    selected_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
-    if (!Object.keys(selected_data_fields).length) {
-      throw new Error("No allowed fields");
-    }
-    selected_data_fields = stripPrefixes(selected_data_fields);
+    user_select_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
+    user_select_data_fields = stripPrefixes(user_select_data_fields);
   }
-
-  if(Object.keys(selected_data_fields).length == 0) throw new Error("No fields allowed");
 
   let result:any
 
-  console.log(selected_data_fields)
+  let selected_data_fields: Record<string, any> = structuredClone(user_select_data_fields);
 
-  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
+
+  if (!Object.keys(selected_data_fields).length) {
+    throw new Error("No allowed fields");
+  }
 
   switch(query.type.toUpperCase()) {
     case 'GET': {
@@ -118,7 +117,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     }
   }
 
-  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, selected_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
 
   return result
 }

@@ -632,31 +632,58 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
         }
       }
     }
-    if("set" in trigger.query) {
-      if(after) {
+    if ("set" in trigger.query) {
+      if (after) {
         console.log('Set not available in after queries')
         continue
       }
+
       const set = trigger.query.set
       const table_name = getTableName(tableStruct.table)
-      let where = await buildWhere(db, set.when, tableMap, user, query, tableStruct.table, table_name);
-      const set_value = resolveCustomValue(set.value, user, query, tableMap, table_name)
-      const else_value = 
-        "else_value" in set ? 
-          resolveCustomValue(set.else_value, user, query, tableMap, table_name) : 
-          selected_data_fields[set.field] ? 
-            resolveCustomValue(selected_data_fields[set.field], user, query, tableMap, table_name) :
-            null
+
+      const where = await buildWhere(
+        db,
+        set.when,
+        tableMap,
+        user,
+        query,
+        tableStruct.table,
+        table_name
+      )
+
+      const set_value = resolveCustomValue(
+        set.value,
+        user,
+        query,
+        tableMap,
+        table_name
+      )
+
+      let fallback_value
+
+      if ("else_value" in set) {
+        fallback_value = resolveCustomValue(
+          set.else_value,
+          user,
+          query,
+          tableMap,
+          table_name
+        )
+      } else if (selected_data_fields[set.field]) {
+        // preserve previous transformation safely
+        fallback_value = selected_data_fields[set.field]
+      } else {
+        fallback_value = sql`COALESCE(${set_value}, '')`
+      }
+
+      console.log('SETTING: ', set.field)
+
       selected_data_fields[set.field] = sql`
         CASE 
           WHEN ${where} THEN ${set_value}
-          ${
-            else_value
-              ? sql`ELSE ${else_value}`
-              : sql.empty()
-          }
+          ELSE ${fallback_value}
         END
-      `;
+      `
     }
     if("type" in trigger.query) {
       await build_query(db, trigger.query, user, role, structure, {

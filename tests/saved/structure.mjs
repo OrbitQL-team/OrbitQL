@@ -97,7 +97,8 @@ export default {
               "value": 1
             }
           },
-          "disallowed": ""
+          "disallowed": "",
+          "return_after": 1
         },
         "triggers": [
           {
@@ -114,6 +115,21 @@ export default {
                 "value": "wela"
               }
             }
+          },
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "surname",
+                "when": {
+                  "field": "surname",
+                  "op": "=",
+                  "value": "Zucchelli"
+                },
+                "value": "wela"
+              }
+            }
           }
         ]
       },
@@ -124,8 +140,39 @@ export default {
           "disallowed": []
         },
         "admin": {
-          "allowed": "*"
-        }
+          "allowed": "*",
+          "return_after": 1
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          },
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "surname",
+                "when": {
+                  "field": "surname",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          }
+        ]
       },
       {
         "type": "DELETE",
