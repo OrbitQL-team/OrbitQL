@@ -3,6 +3,7 @@
 import { spawn } from 'child_process';
 import { select } from './db-select.mjs';
 import { buildObject } from './object-builder.mjs';
+import { createConnection } from './db-connection.mjs';
 import default_user from '../saved/user.mjs'
 import default_structure from '../saved/structure.mjs'
 import default_query from '../saved/query.mjs'
@@ -10,6 +11,7 @@ import user_role from '../saved/user_role.mjs'
 import { navigate_object } from './object-navigator-editor.mjs';
 import prompts from 'prompts';
 import { save_to_file } from './save-to-file.mjs';
+import { createConnection } from './db-connection.mjs';
 
 async function main() {
   let back = false;
@@ -38,6 +40,13 @@ async function main() {
     do {
       let db_select = await select();
 
+      //Create db connection
+      let db = await createConnection(db_select)
+
+      console.log(db)
+
+      // Build object after DB selection
+      const { result: user, previous } = await buildObject('User body');
       back = false;
 
       const { result: structure, previous } = await navigate_object('Structure body', '../saved/structure.mjs', default_structure);
