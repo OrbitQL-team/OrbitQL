@@ -85,12 +85,15 @@ export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 
 // Endpoint structure
 export type Endpoint = {
+  // Explicit properties
   type: EndpointType;
   order_by?: string[];
   direction?: "asc" | "desc";
-  [role: string]:
-    | RolePermissions
-    | typeof NONE
+  
+  // Dynamic role properties
+  [role: string]: 
+    | RolePermissions 
+    | typeof NONE 
     | string[]
     | "asc"
     | "desc"
@@ -103,17 +106,28 @@ export type Endpoint = {
 /* -------------------------------------------------------------------------- */
 
 type AllowedAliases =
-  | { allowed: FieldPermission }
-  | { allow: FieldPermission };
+  | { allowed: FieldPermission; allow?: never }
+  | { allow: FieldPermission; allowed?: never };
 
 type DisallowedAliases =
-  | { disallowed?: FieldPermission }
-  | { deny?: FieldPermission };
+  | { disallowed?: FieldPermission; deny?: never }
+  | { deny?: FieldPermission; disallowed?: never };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases;
+type Limit = { limit?: number };
+
+type ReturnBeforeStatus = { return_before?: boolean };
+type ReturnAfterStatus = { return_after?: boolean };
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus;
+
+export type Response = {
+  before: any,
+  response: any,
+  after:any
+}
 
 export type FieldPermission =
-  | string[] | string
+  | string | string[]
   | {
       field: string | string[];
       where?: WhereCondition;
@@ -152,7 +166,7 @@ export type SafeOperator = typeof SAFE_OPERATORS[number];
 export type StructuredQuery = {
   table: keyof Structure;
   type: "GET" | "PUT" | "DELETE" | "POST";
-  select?: string[];
+  select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
   data?: Record<string, any>;
@@ -165,9 +179,12 @@ export type StructuredQuery = {
   [key: string]: any;
 };
 
-export type SimpleCondition = {
+type OperatorAlias =
+  | { operator: SafeOperator; op?: never }
+  | { op: SafeOperator; operator?: never };
+
+export type SimpleCondition = OperatorAlias & {
   field?: string;
-  operator?: SafeOperator;
   left_value?: any;
   value?: any;
 };
@@ -219,7 +236,7 @@ export type WhereCondition = SimpleCondition | NestedCondition;
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
   field?: string;
-  left_value?: any;
+  left_value?: any; //supports $data - $user - $col - any
   operator: "IN";
   value: {
     select: string;
