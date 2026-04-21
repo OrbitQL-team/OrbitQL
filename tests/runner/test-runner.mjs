@@ -11,7 +11,6 @@ import user_role from '../saved/user_role.mjs'
 import { navigate_object } from './object-navigator-editor.mjs';
 import prompts from 'prompts';
 import { save_to_file } from './save-to-file.mjs';
-import { createConnection } from './db-connection.mjs';
 
 async function main() {
   let back = false;
@@ -39,15 +38,6 @@ async function main() {
   }else if(test.type == 'custom') {
     do {
       let db_select = await select();
-
-      //Create db connection
-      let db = await createConnection(db_select)
-
-      console.log(db)
-
-      // Build object after DB selection
-      const { result: user, previous } = await buildObject('User body');
-      back = false;
 
       const { result: structure, previous } = await navigate_object('Structure body', '../saved/structure.mjs', default_structure);
       if (previous) {

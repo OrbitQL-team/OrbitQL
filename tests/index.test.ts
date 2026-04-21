@@ -1,19 +1,27 @@
 import * as schema from './schema';
 import build_query from "../src";
 import { NONE, StructuredQuery, TableStructure } from "../src/types";
-import mysql from 'mysql2/promise';
-import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2'
 import { it, expect } from "vitest";
+import { createConnection } from './runner/db-connection.mjs';
 
-const client = mysql.createPool("mysql://polaris:polaris_is_very_cool@localhost:3306/polaris");
-
-const DB = process.env.DB || 'mysql';
+const selected_db = process.env.DB || null;
+const selected_family = process.env.DB_FAMILY || null;
 const local_user = process.env.USER_OBJ ? JSON.parse(process.env.USER_OBJ) : null
 const role = process.env.USER_ROLE ? process.env.USER_ROLE : null
 const query:StructuredQuery = process.env.STRUCTURE_QUERY ? JSON.parse(process.env.STRUCTURE_QUERY) : null;
 let structure:Record<string, TableStructure> = process.env.STRUCTURE_OBJ ? JSON.parse(process.env.STRUCTURE_OBJ) : null;
 
-const db = drizzle(client, { schema, mode: 'default' }) ?? null as unknown as MySql2Database
+if(query == null) throw Error('Query not passed')
+if(role == null) throw Error('Role not passed')
+if(structure == null) throw Error('Structure not passed')
+if(local_user == null) throw Error('User object not passed')
+if(selected_db == null) throw Error('Database not selected')
+if(selected_family == null) throw Error('Database family not selected')
+
+let db = await createConnection({
+  db: selected_db,
+  family: selected_family,
+});
 
 function injectSchemaIntoTable(config:Record<string, TableStructure>, schema:any) {
   const result:any = {};
@@ -33,10 +41,6 @@ function injectSchemaIntoTable(config:Record<string, TableStructure>, schema:any
 }
 
 structure = injectSchemaIntoTable(structure, schema)
-
-if(query == null) throw Error('Query not passed')
-if(role == null) throw Error('Role not passed')
-if(structure == null) throw Error('Structure not passed')
 
 it("should measure build and execute performance", async () => {
   // Measure build time
