@@ -4,13 +4,11 @@ import { NONE, StructuredQuery, TableStructure } from "../src/types";
 import mysql from 'mysql2/promise';
 import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2'
 import { describe, it, expect } from "vitest";
+import { getDB } from "./runner/db-connection.mjs"
 
-const client = mysql.createPool("mysql://polaris:polaris_is_very_cool@localhost:3306/polaris");
-
-const DB = process.env.DB || 'mysql';
 const local_user = process.env.USER_OBJ ? JSON.parse(process.env.USER_OBJ) : null
 
-const db = drizzle(client, { schema, mode: 'default' }) ?? null as unknown as MySql2Database
+const db = getDB(process.env.DB_FAMILY, process.env.DB_HOST, process.env.DB_USER, process.env.DB_PWD, process.env.DB_NAME, schema)
 
 const structure: Record<string, TableStructure> = {
     users: {

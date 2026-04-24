@@ -23,9 +23,7 @@ async function main() {
     db_select = await select();
 
     //Create db connection
-    let db = await createConnection(db_select)
-
-    console.log(db)
+    let db = await createConnection(db_select);
 
     // Build object after DB selection
     const { result: user, previous } = await buildObject('User body');
@@ -37,15 +35,27 @@ async function main() {
 
     back = false;
 
-    // Run Vitest
-    const child = spawn('npx', ['vitest', 'run'], {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        DB: db_select.db,
-        DB_FAMILY: db_select.family,
-        USER_OBJ: JSON.stringify(user)
-      }
+    const isWin = process.platform === "win32";
+
+    const env = {
+      ...process.env,
+      DB_FAMILY: db_select.family,
+      DB_HOST:db.db_address,
+      DB_USER:db.user_name,
+      DB_PWD:db.password,
+      DB_NAME:db.db_name,
+      USER_OBJ: JSON.stringify(user)
+    }
+
+    //run vitest
+    const child = isWin
+      ? spawn("cmd.exe", ["/d", "/s", "/c", "npx", "vitest", "run"], {
+          stdio: "inherit",
+          env,
+        })
+      : spawn("npx", ["vitest", "run"], {
+          stdio: "inherit",
+          env,
     });
 
     child.on('exit', (code) => {
