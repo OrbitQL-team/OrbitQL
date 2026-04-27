@@ -57,8 +57,9 @@ export async function select() {
     let family
     let db
     while (!db) {
-        // Step 1: select family if undefined
-        if (!family) {
+      console.clear();
+      // Step 1: select family if undefined
+      if (!family) {
         const familyResp = await prompts(
             {
             type: 'select',
@@ -86,10 +87,10 @@ export async function select() {
         }
 
         family = familyResp.family;
-        }
+      }
 
-        // Step 2: select db with "< Previous" option
-        const dbResp = await prompts(
+      // Step 2: select db with "< Previous" option
+      const dbResp = await prompts(
         {
             type: 'select',
             name: 'db',
@@ -105,19 +106,19 @@ export async function select() {
             process.exit(1);
             }
         }
-        );
+      );
 
-        if (!dbResp.db) {
+      if (!dbResp.db) {
         console.error('No database selected');
         process.exit(1);
-        }
+      }
 
-        if (dbResp.db === '__previous') {
+      if (dbResp.db === '__previous') {
         family = undefined; // go back to family selection
         continue;
-        }
+      }
 
-        db = dbResp.db;
+      db = dbResp.db;
     }
 
     return {db, family}

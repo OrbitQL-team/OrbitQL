@@ -1,114 +1,75 @@
 import * as schema from './schema';
 import build_query from "../src";
 import { NONE, StructuredQuery, TableStructure } from "../src/types";
-import mysql from 'mysql2/promise';
-import { drizzle, type MySql2Database } from 'drizzle-orm/mysql2'
-import { describe, it, expect } from "vitest";
+import { it, expect } from "vitest";
+import { createConnection } from './runner/db-connection.mjs';
 import { getDB } from "./runner/db-connection.mjs"
 
+const db_host = process.env.DB_HOST || null;
+const db_user = process.env.DB_USER || null;
+const db_pwd = process.env.DB_PWD || null;
+const db_name = process.env.DB_NAME || null;
+const selected_family = process.env.DB_FAMILY || null;
 const local_user = process.env.USER_OBJ ? JSON.parse(process.env.USER_OBJ) : null
+const role = process.env.USER_ROLE ? process.env.USER_ROLE : null
+const query:StructuredQuery = process.env.STRUCTURE_QUERY ? JSON.parse(process.env.STRUCTURE_QUERY) : null;
+let structure:Record<string, TableStructure> = process.env.STRUCTURE_OBJ ? JSON.parse(process.env.STRUCTURE_OBJ) : null;
 
-const db = getDB(process.env.DB_FAMILY, process.env.DB_HOST, process.env.DB_USER, process.env.DB_PWD, process.env.DB_NAME, schema)
+if(query == null) throw Error('Query not passed')
+if(db_host == null) throw Error('DB host not passed')
+if(db_user == null) throw Error('DB user not passed')
+if(db_pwd == null) throw Error('DB password not passed')
+if(db_name == null) throw Error('DB name not passed')
+if(role == null) throw Error('Role not passed')
+if(structure == null) throw Error('Structure not passed')
+if(local_user == null) throw Error('User object not passed')
+if(selected_family == null) throw Error('Database family not selected')
 
-const structure: Record<string, TableStructure> = {
-    users: {
-        endpoints: [
-            {
-                type: "GET" as const,
-                user: { 
-                    allow: {
-                        field: ["*"],
-                        where: {
-                            and: [
-                                {
-                                    field: "users.have_access",
-                                    operator: "=",
-                                    value: 1
-                                },
-                                {
-                                    left_value: "$user.have_access",
-                                    operator: "=",
-                                    value: 1
-                                },
-                            ]
-                        }
-                    },
-                    deny: {
-                        field: "have_access",
-                        where: {
-                            field: 'users.id',
-                            operator: '!=',
-                            value: '$user.id'
-                        }
-                    }
-                },
-            },
-            {
-                type: "PUT" as const,
-                user: { 
-                    allowed:{
-                        field: ["*"],
-                        where: {
-                            if: {
-                                'when': {
-                                    left_value: '$data.name',
-                                    operator: 'IS NOT NULL'
-                                },
-                                do: true,
-                                else: false
-                            }
-                        }
-                    }, 
-                    disallowed: {
-                        field: ["id", "have_access"],
-                        where: {
-                            left_value: "$user.have_access",
-                            operator: "=",
-                            value: 0
-                        }
-                    }
-                },
-            },
-            { 
-                type: "POST" as const,
-                user: NONE
-            },
-            { 
-                type: "DELETE" as const,
-                user: NONE
-            }
-        ],
-        table: schema.users,
+let db = getDB(selected_family, db_host, db_user, db_pwd, db_name, schema)
+
+function injectSchemaIntoTable(config:Record<string, TableStructure>, schema:any) {
+  const result:any = {};
+
+  for (const key in config) {
+    if (!schema[key]) {
+      throw new Error(`Missing schema for key: ${key}`);
     }
-}
-const query:StructuredQuery = {
-    type: 'PUT' as const,
-    data: {
-        name: 'Daniele'
-    },
-    where: {
-        field: 'users.id',
-        operator: '=',
-        value: 1
-    },
-    table: 'users'
+
+    result[key] = {
+      ...config[key],
+      table: schema[key] // ← replace "users" with schema.users
+    };
+  }
+
+  return result;
 }
 
-describe("build_query result", () => {
-  it("should return at least one row and measure execution time", async () => {
-    const start = Date.now();
+structure = injectSchemaIntoTable(structure, schema)
 
-    const built_query = await build_query(db, query, local_user, "user", structure);
-    const result = await built_query.execute();
+it("should measure build and execute performance", async () => {
+  // Measure build time
+  const buildStart = performance.now();
 
-    const end = Date.now();
-    const duration = end - start;
+  const built_query = await build_query(
+    db,
+    query,
+    local_user,
+    role,
+    structure
+  );
 
-    console.log(result)
+  const buildTime = performance.now() - buildStart;
 
-    console.log(`Query executed in ${duration} ms`);
+  // Measure execution time
+  const execStart = performance.now();
 
-    // Assert that there is at least one row
-    expect(result);
-  });
+  const result = await built_query.execute();
+
+  const execTime = performance.now() - execStart;
+
+  console.log("Query result:", result);
+  console.log(`Build time: ${buildTime.toFixed(2)} ms`);
+  console.log(`Execute time: ${execTime.toFixed(2)} ms`);
+
+  expect(result).toBeDefined();
 });
