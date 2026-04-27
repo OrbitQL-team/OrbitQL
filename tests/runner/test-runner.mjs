@@ -34,16 +34,8 @@ async function main() {
     }
   );
   if(test.type == 'default') {
-
-  }else if(test.type == 'custom') {
-    do {
-      let db_select = await select();
-
-      const { result: structure, previous } = await navigate_object('Structure body', '../saved/structure.mjs', default_structure);
-      if (previous) {
-        back = true;
-        continue;
-      }
+    //Create db connection
+    let db = await createConnection(db_select);
 
       const user_type = await prompts(
         {
@@ -68,11 +60,34 @@ async function main() {
         continue;
       }
 
-      const { result: query, go_back_to_user } = await navigate_object('Query Body', '../saved/query.mjs', default_query);
+    const isWin = process.platform === "win32";
+
+    const env = {
+      ...process.env,
+      DB_FAMILY: db_select.family,
+      DB_HOST:db.db_address,
+      DB_USER:db.user_name,
+      DB_PWD:db.password,
+      DB_NAME:db.db_name,
+      USER_OBJ: JSON.stringify(user)
+    }
+    
+    const { result: query, go_back_to_user } = await navigate_object('Query Body', '../saved/query.mjs', default_query);
       if (go_back_to_user) {
         back = true;
         continue;
-      }
+    }
+
+    //run vitest
+    const child = isWin
+      ? spawn("cmd.exe", ["/d", "/s", "/c", "npx", "vitest", "run"], {
+          stdio: "inherit",
+          env,
+        })
+      : spawn("npx", ["vitest", "run"], {
+          stdio: "inherit",
+          env,
+    });
 
       // Run Vitest
       const child = spawn('npx', ['vitest', 'run'], {

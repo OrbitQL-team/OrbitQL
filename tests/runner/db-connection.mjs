@@ -42,9 +42,13 @@ export async function createConnection(db_select, config = {}) {
     },
   ], { onCancel });
 
+  return { db_address, user_name, password, db_name };
+}
+
+export async function getDB(family, db_address, user_name, password, db_name, schema) {
   let db;
 
-  switch (db_select.family) {
+  switch (family) {
 
     case "mysql": {
       const mysql = await import("mysql2/promise");
@@ -57,7 +61,7 @@ export async function createConnection(db_select, config = {}) {
         port: 3306,
       });
 
-      db = mysqlDrizzle(pool);
+      db = mysqlDrizzle(pool, { schema, mode: 'default' });
       break;
     }
 
@@ -72,7 +76,7 @@ export async function createConnection(db_select, config = {}) {
         port: 5432,
       });
 
-      db = pgDrizzle(pool);
+      db = pgDrizzle(pool, { schema, mode: 'default' });
       break;
     }
 
@@ -83,7 +87,7 @@ export async function createConnection(db_select, config = {}) {
         `postgres://${user_name}:${password}@${db_address}:5432/${db_name}`
       );
 
-      db = postgresJsDrizzle(client);
+      db = postgresJsDrizzle(client, { schema, mode: 'default' });
       break;
     }
 
@@ -95,14 +99,14 @@ export async function createConnection(db_select, config = {}) {
         `postgres://${user_name}:${password}@${db_address}/${db_name}`
       );
 
-      db = neonDrizzle(sql);
+      db = neonDrizzle(sql, { schema, mode: 'default' });
       break;
     }
 
     case "vercel-pg": {
       const { sql } = await import("@vercel/postgres");
 
-      db = vercelDrizzle(sql);
+      db = vercelDrizzle(sql, { schema, mode: 'default' });
       break;
     }
 
@@ -111,7 +115,7 @@ export async function createConnection(db_select, config = {}) {
 
       const sqlite = new Database(db_name);
 
-      db = betterSqliteDrizzle(sqlite);
+      db = betterSqliteDrizzle(sqlite, { schema, mode: 'default' });
       break;
     }
 
@@ -123,7 +127,7 @@ export async function createConnection(db_select, config = {}) {
         authToken: password,
       });
 
-      db = libsqlDrizzle(client);
+      db = libsqlDrizzle(client, { schema, mode: 'default' });
       break;
     }
 
@@ -142,7 +146,7 @@ export async function createConnection(db_select, config = {}) {
 
       const client = new PGlite();
 
-      db = pgliteDrizzle(client);
+      db = pgliteDrizzle(client, { schema, mode: 'default' });
       break;
     }
 
@@ -158,13 +162,14 @@ export async function createConnection(db_select, config = {}) {
         database: db_name,
         secretArn: config.secretArn,
         resourceArn: config.resourceArn,
+        schema
       });
 
       break;
     }
 
     default:
-      throw new Error(`Unsupported DB type: ${db_select.family}`);
+      throw new Error(`Unsupported DB type: ${family}`);
   }
 
   return db;
