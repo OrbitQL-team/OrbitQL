@@ -157,17 +157,17 @@ export function resolve_data(
                 ? rolePermissions.deny ?? []
                 : [];
 
+        // Schema existence check
+        if (!tableMap[table] || !(field in tableMap[table])) {
+            throw new Error(`Field '${field}' does not exist on table '${table}'`);
+        }
+
         // Authorization check (normalized field)
         if (!resolve_allowed_fields(field, allowed, disallowed)) {
             console.log("TABLE: ", table)
             console.log("REMOVED: ",field)
             continue
         };
-
-        // Schema existence check
-        if (!tableMap[table] || !(field in tableMap[table])) {
-            throw new Error(`Field '${field}' does not exist on table '${table}'`);
-        }
 
         allowed_fields[entry] = value;
     }
