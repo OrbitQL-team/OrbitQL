@@ -87,7 +87,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   let result:any
 
-  let selected_data_fields: Record<string, any> = structuredClone(user_select_data_fields);
+  let selected_data_fields: Record<string, any> = { ...user_select_data_fields };
 
   if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
 

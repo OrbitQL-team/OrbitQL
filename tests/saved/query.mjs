@@ -1,6 +1,5 @@
 export default {
-  "type": "POST",
-  "data": {
-  },
+  "type": "GET",
+  "select": ['$count.*'],
   "table": "users"
 };

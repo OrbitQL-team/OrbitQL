@@ -4,28 +4,13 @@ export default {
       {
         "type": "GET",
         "user": {
-          "allow": {
-            "field": [
-              "id",
-              "name",
-              "email",
-              "surname"
-            ],
-            "where": {
-              "and": [
-                {
-                  "field": "id",
-                  "op": "=",
-                  "value": "$user.id"
-                },
-                {
-                  "left_value": "$user.have_access",
-                  "op": "=",
-                  "value": 1
-                }
-              ]
-            }
-          }
+          "allow": [
+            "id",
+            "name",
+            "email",
+            "surname"
+          ],
+          "disallowed": "",
         },
         "admin": {
           "allowed": {

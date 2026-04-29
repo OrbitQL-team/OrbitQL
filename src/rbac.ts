@@ -1,3 +1,4 @@
+import { count } from "drizzle-orm";
 import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SafeOperator, SimpleCondition } from "./types.ts";
 
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
@@ -22,54 +23,19 @@ export function resolve_fields(
 
     const keys = Array.isArray(fields) ? fields : fields;
 
-    // Handle ["*"] wildcard
-    if ((keys == "*" && typeof keys == 'string') || (keys.length === 1 && keys[0] === "*")) {
-        // expand to all allowed fields of the default_table
-        const tableStruct = structure[default_table];
-        if (!tableStruct) throw new Error(`Unknown table '${default_table}'`);
-
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
-        if (!endpoint) throw new Error(`${type} not allowed on ${default_table}`);
-
-        const rolePermissions = endpoint[role];
-        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
-            return allowed_fields;
-        }
-
-        const allowed =
-            'allowed' in rolePermissions
-                ? rolePermissions.allowed
-                : 'allow' in rolePermissions
-                ? rolePermissions.allow
-                : [];
-
-        const disallowed =
-            'disallowed' in rolePermissions
-                ? rolePermissions.disallowed ?? []
-                : 'deny' in rolePermissions
-                ? rolePermissions.deny ?? []
-                : [];
-
-        for (const field of Object.keys(tableMap[default_table])) {
-            if (!resolve_allowed_fields(field, allowed, disallowed)) {
-                console.log("TABLE: ", default_table)
-                console.log("REMOVED: ",field)
-                continue
-            };
-            allowed_fields[`${default_table}.${field}`] = tableMap[default_table][field];
-        }
-
-        return allowed_fields;
-    }
-
     function resolve_field(entry:string) {
         let table: string;
         let field: string;
 
-        if (entry.includes(".")) [table, field] = entry.split(".");
+        console.log('ENTRY: ',entry)
+        const isCount = entry.startsWith("$count.");
+        const plain_entry = isCount ? entry.slice(7) : entry;
+        console.log('IS COUNT: ', isCount)
+
+        if (plain_entry.includes(".")) [table, field] = plain_entry.split(".");
         else {
             table = default_table;
-            field = entry;
+            field = plain_entry;
         }
 
         const tableStruct = structure[table];
@@ -96,6 +62,7 @@ export function resolve_fields(
                 : 'deny' in rolePermissions
                 ? rolePermissions.deny ?? []
                 : [];
+    
         if(field == "*") {
             for (const current_field of Object.keys(tableMap[table])) {
                 if (!resolve_allowed_fields(current_field, allowed, disallowed)) {
@@ -103,7 +70,11 @@ export function resolve_fields(
                     console.log("REMOVED: ",current_field)
                     continue
                 };
-                allowed_fields[`${table}.${current_field}`] = tableMap[table][current_field];
+                const field_reference = tableMap[table][current_field]
+                console.log('current field: ', current_field)
+                if(isCount) {
+                    allowed_fields[`${table}.${current_field}`] = count(field_reference)
+                }else allowed_fields[`${table}.${current_field}`] = field_reference;
             }
         }else {
             if (!resolve_allowed_fields(field, allowed, disallowed)) {
@@ -112,7 +83,10 @@ export function resolve_fields(
                 return
             };
             if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
-            allowed_fields[`${table}.${field}`] = tableMap[table][field];
+            const field_reference = tableMap[table][field]
+            if(isCount) {
+                allowed_fields[`${table}.${field}`] = count(field_reference)
+            }else allowed_fields[`${table}.${field}`] = field_reference;
         }
     }
 
@@ -195,37 +169,35 @@ export function resolve_data(
             throw new Error(`Field '${field}' does not exist on table '${table}'`);
         }
 
-        // IMPORTANT PART:
-        // Preserve original key for UPDATE
         allowed_fields[entry] = value;
     }
 
     return allowed_fields;
 }
 
-function matchesField(field: string, col: string, rule: string): {result: boolean, matched_field: any} {
-    if (rule === "*") return {result: true, matched_field: rule};
-    else return {result: rule === field || rule === col, matched_field: rule}
+function matchesField(field: string, rule: string): boolean {
+    if (rule === "*") return true;
+    else if(rule === field) return true
+    return false
 }
 
 function matchesPermission(
     field: string,
-    col: string,
     permission?: FieldPermission
 ): {result: boolean, matched_field: any} {
     if (!permission) return { result: false, matched_field: null };
 
     if(typeof permission == 'string') {
-        return matchesField(field, col, permission);
+        return { result: matchesField(field, permission), matched_field: field };
     }
 
     if (Array.isArray(permission)) {
         for(let rule of permission) {
-            const result = matchesField(field, col, rule)
-            console.log(result)
-            if(result.matched_field) return result
+            const result = matchesField(field, rule)
+            console.log('RESULT:', result)
+            if(result) return { result, matched_field: field }
         }
-        return { result: false, matched_field: null };
+        return { result: false, matched_field: field };
     }
 
     if (typeof permission === "object") {
@@ -234,17 +206,17 @@ function matchesPermission(
         if (Array.isArray(rule)) {
             if (rule.includes("*")) return { result: true, matched_field: "*" };
             for(let r of rule) {
-                const result = matchesField(field, col, r)
+                const result = matchesField(field, r)
                 console.log(result)
-                if(result.matched_field) return result
+                if(result) return { result, matched_field: field }
             }
-            return { result: false, matched_field: null };
+            return { result: false, matched_field: field };
         }
 
-        return matchesField(field, col, rule);
+        return { result: matchesField(field, rule), matched_field: field }
     }
 
-    return { result: false, matched_field: null };
+    return { result: false, matched_field: field };
 }
 
 export function resolve_allowed_fields(
@@ -252,13 +224,12 @@ export function resolve_allowed_fields(
     allowed?: FieldPermission,
     disallowed?: FieldPermission
 ): boolean {
-    const col = field.includes(".") ? field.split(".")[1] : field;
 
-    const { result: isAllowed } = matchesPermission(field, col, allowed);
-    console.log(field, col, allowed)
+    const { result: isAllowed } = matchesPermission(field, allowed);
+    console.log(field, allowed)
     if (!isAllowed) return false;
 
-    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, col, disallowed);
+    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
     console.log(isAllowed, isDisallowed)
     if (isDisallowed) {
         if(isAllowed && disallowed_matched_field == "*") return true
@@ -305,84 +276,87 @@ export function resolveCustomValue(
   tableMap: Record<string, any>,
   default_table_name: string,
 ): any {
-  if (!value) return value;
+    if (!value) return value;
 
-  // ------------------------
-  // Handle object: { $col: ... }
-  // ------------------------
-  if (typeof value === "object" && "$col" in value) {
-    const colRef = value.$col;
+    // ------------------------
+    // Handle object: { $col: ... }
+    // ------------------------
+    let match = typeof value === "string" && value.match(/^\$col\.(.+)$/);
 
-    if (typeof colRef !== "string") {
-      throw new Error(`Invalid $col reference`);
+    if (match) {
+        const colRef = match[1];
+
+        if (!tableMap) {
+            throw new Error(`tableMap is required to resolve $col`);
+        }
+
+        const parts = colRef.split(".");
+
+        let vTbl: string;
+        let vCol: string;
+
+        if (parts.length === 2) {
+            [vTbl, vCol] = parts;
+        } else if (parts.length === 1) {
+            if (!default_table_name) {
+                throw new Error(
+                    `Column '${colRef}' missing table and no default_table_name provided`
+                );
+            }
+            vTbl = default_table_name;
+            vCol = parts[0];
+        } else {
+            throw new Error(`Invalid $col format: '${value}'`);
+        }
+
+        const vColumn = tableMap[vTbl]?.[vCol];
+
+        if (!vColumn) {
+            throw new Error(`Column '${colRef}' not found`);
+        }
+
+        return vColumn;
     }
 
-    if (!tableMap) {
-      throw new Error(`tableMap is required to resolve $col`);
+    // ------------------------
+    // Non-string → return as-is
+    // ------------------------
+    if (typeof value !== "string") return value;
+
+    // ------------------------
+    // $user.X
+    // ------------------------
+    match = value.match(/^\$user\.(\w+)$/);
+    if (match && user) {
+        return is_undefined(user[match[1]]);
     }
 
-    let vTbl: string;
-    let vCol: string;
+    // ------------------------
+    // $data.X
+    // ------------------------
+    match = value.match(/^\$data\.(.+)$/);
+    if (match && query?.data) {
+        const key = match[1];
 
-    if (colRef.includes(".")) {
-      [vTbl, vCol] = colRef.split(".");
-    } else {
-      if (!default_table_name) {
-        throw new Error(
-          `Column '${colRef}' missing table and no default_table_name provided`
-        );
-      }
-      vTbl = default_table_name;
-      vCol = colRef;
+        // direct match
+        if (key in query.data) return is_undefined(query.data[key]);
+
+        // nested resolution
+        const parts = key.split(".");
+        let val: any = query.data;
+
+        for (const part of parts) {
+            if (val && part in val) val = val[part];
+            else return '';
+        }
+
+        return is_undefined(val);
     }
 
-    const vColumn = tableMap[vTbl]?.[vCol];
-    if (!vColumn) {
-      throw new Error(`Column '${colRef}' not found`);
-    }
-
-    return vColumn;
-  }
-
-  // ------------------------
-  // Non-string → return as-is
-  // ------------------------
-  if (typeof value !== "string") return value;
-
-  // ------------------------
-  // $user.X
-  // ------------------------
-  let match = value.match(/^\$user\.(\w+)$/);
-  if (match && user) {
-    return is_undefined(user[match[1]]);
-  }
-
-  // ------------------------
-  // $data.X
-  // ------------------------
-  match = value.match(/^\$data\.(.+)$/);
-  if (match && query?.data) {
-    const key = match[1];
-
-    // direct match
-    if (key in query.data) return is_undefined(query.data[key]);
-
-    // nested resolution
-    const parts = key.split(".");
-    let val: any = query.data;
-
-    for (const part of parts) {
-      if (val && part in val) val = val[part];
-      else return '';
-    }
-
-    return is_undefined(val);
-  }
-
-  // ------------------------
-  // fallback
-  // ------------------------
-  return is_undefined(value);
+    // ------------------------
+    // fallback
+    // ------------------------
+    return is_undefined(value);
 }
 
 export function is_op_type(condition:SimpleCondition, text:string) {
