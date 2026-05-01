@@ -262,15 +262,15 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
   let aclWhere: WhereCondition | null = null;
 
   // Helper to inject if `where` exists
-  function injectIfExists(obj: any) {
-    return obj && obj.where ? (injectDynamicValues(obj.where, user, query, tableMap, default_table_name) as WhereCondition) : undefined;
-  }
+  //function injectIfExists(obj: any) {
+  //  return obj && obj.where ? (injectDynamicValues(obj.where, user, query, tableMap, default_table_name) as WhereCondition) : undefined;
+  //}
 
   // !NEED TO BE TESTED AND SEE IF IS USELESS INJECTDYNAMICVALUES
-  // function injectIfExists(obj: any) {
-  //   return obj && obj.where ? (obj.where as WhereCondition) : undefined;
-  // }
-
+  function injectIfExists(obj: any) {
+     return obj && obj.where ? (obj.where as WhereCondition) : undefined;
+  }
+  
   const allowedWhere = injectIfExists(allowed);
   const disallowedWhere = injectIfExists(disallowed);
 
