@@ -1,15 +1,17 @@
 import { count } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SafeOperator, SimpleCondition, ExistsCondition } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition } from "./types.ts";
 
+// * Alias selected fields from the user
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
   const aliased: Record<string, any> = {};
   for (const [key, col] of Object.entries(fields)) {
-    // key is already `tablename.field`
+    // * key is already `tablename.field`
     aliased[key] = col;
   }
   return aliased;
 }
 
+// * Resolve allowed fields
 export function resolve_fields(
     structure: Structure,
     fields: any,
@@ -102,7 +104,7 @@ export function resolve_fields(
     return allowed_fields;
 }
 
-
+// * Resolve allowed passed data
 export function resolve_data(
     structure: Structure,
     fields: any,
@@ -157,12 +159,12 @@ export function resolve_data(
                 ? rolePermissions.deny ?? []
                 : [];
 
-        // Schema existence check
+        // * Schema existence check
         if (!tableMap[table] || !(field in tableMap[table])) {
             throw new Error(`Field '${field}' does not exist on table '${table}'`);
         }
 
-        // Authorization check (normalized field)
+        // * Authorization check (normalized field)
         if (!resolve_allowed_fields(field, allowed, disallowed)) {
             console.log("TABLE: ", table)
             console.log("REMOVED: ",field)
@@ -175,12 +177,14 @@ export function resolve_data(
     return allowed_fields;
 }
 
+// * Checkes if the field is accepted inside of structure
 function matchesField(field: string, rule: string): boolean {
     if (rule === "*") return true;
     else if(rule === field) return true
     return false
 }
 
+// * Combines allowed and not allowed permission to check if allowed
 function matchesPermission(
     field: string,
     permission?: FieldPermission
@@ -219,6 +223,7 @@ function matchesPermission(
     return { result: false, matched_field: field };
 }
 
+// * Resolve if field is allowed
 export function resolve_allowed_fields(
     field: string,
     allowed?: FieldPermission,
@@ -239,13 +244,14 @@ export function resolve_allowed_fields(
     return true;
 }
 
+// * Remove prefixes
 export function stripPrefixes(input: any): any {
-    // Handle arrays
+    // * Handle arrays
     if (Array.isArray(input)) {
         return input.map(stripPrefixes);
     }
 
-    // Handle objects (but not null)
+    // * Handle objects (but not null)
     if (input !== null && typeof input === "object") {
         const cleaned: Record<string, any> = {};
 
@@ -260,15 +266,17 @@ export function stripPrefixes(input: any): any {
         return cleaned;
     }
 
-    // Primitives (string, number, boolean, null, undefined)
+    // * Primitives (string, number, boolean, null, undefined)
     return input;
 }
 
+// * Simply checks if value passed is undefined
 export function is_undefined(v: any) {
     if (v === undefined) throw new Error(`Undefined value not supported`);
     return v;
 }
 
+// * Resolves custom values ex. $data - $user $col
 export function resolveCustomValue(
   value: any,
   user: any,
@@ -359,60 +367,181 @@ export function resolveCustomValue(
     return is_undefined(value);
 }
 
+// * checks operator type
 export function is_op_type(condition:SimpleCondition | ExistsCondition, text:string) {
     return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
 }
 
+// * inject dynamic values inside of where condition
+// ! probably not necessary?
 export function injectDynamicValues(
-    cond: WhereCondition | SubqueryCondition,
-    user: any,
-    query: StructuredQuery,
-    tableMap: Record<string, any>,
-    default_table_name: string,
-    safe?: Record<string, any>
+  cond: WhereCondition | SubqueryCondition,
+  user: any,
+  query: StructuredQuery,
+  tableMap: Record<string, any>,
+  default_table_name: string
 ): WhereCondition | SubqueryCondition {
-    if ("and" in cond && Array.isArray(cond.and)) {
-        const newCond = { ...cond };
-        newCond.and = cond.and.map(c =>
-            injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
-        );
-        return newCond;
-    }else if ("or" in cond && Array.isArray(cond.or)) {
-        const newCond = { ...cond };
-        newCond.or = cond.or.map(c =>
-            injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
-        );
-        return newCond;
-    } else if ("not" in cond && cond.not) {
-        const newCond = { ...cond };
-        newCond.not = injectDynamicValues(newCond.not, user, query, tableMap, default_table_name, safe) as WhereCondition
-        return newCond;
-    } else if ("if" in cond && cond.if && cond.if.when) {
-        const newCond = { ...cond };
-        newCond.if.when = injectDynamicValues(newCond.if.when, user, query, tableMap, default_table_name, safe) as WhereCondition
-        return newCond;
-    } else if ("field" in cond && cond.field) {
-        // resolve placeholder
-        const resolvedValue = resolveCustomValue(cond.value, user, query, tableMap, default_table_name)
-        console.log('RESOLVED: ', resolvedValue, " VALUE: ", cond.value)
-        // if safe object is provided, also populate it
-        if (safe) safe[cond.field] = resolvedValue;
+  // ---- AND ----
+  if ("and" in cond && cond.and && Array.isArray(cond.and)) {
+    return {
+      ...cond,
+      and: cond.and.map(c =>
+        injectDynamicValues(c, user, query, tableMap, default_table_name) as WhereCondition
+      ),
+    };
+  }
 
-        // handle subqueries
-        if (typeof cond.value === "object" && "select" in cond.value && cond.value.where) {
-            const newCond = { ...cond, value: { ...cond.value } };
-            newCond.value.where = cond.value.where.map((c: WhereCondition) =>
-                injectDynamicValues(c, user, query, tableMap, default_table_name, safe) as WhereCondition
-            );
-            return newCond;
-        }
+  // ---- OR ----
+  if ("or" in cond && cond.or && Array.isArray(cond.or)) {
+    return {
+      ...cond,
+      or: cond.or.map(c =>
+        injectDynamicValues(c, user, query, tableMap, default_table_name) as WhereCondition
+      ),
+    };
+  }
 
-        return { ...cond, value: resolvedValue };
+  // ---- NOT ----
+  if ("not" in cond && cond.not) {
+    return {
+      ...cond,
+      not: injectDynamicValues(
+        cond.not,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      ) as WhereCondition,
+    };
+  }
+
+  // ---- IF ----
+  if ("if" in cond && cond.if) {
+    const newIf = { ...cond.if };
+
+    if (newIf.when) {
+      newIf.when = injectDynamicValues(
+        newIf.when,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      ) as WhereCondition;
     }
 
-    return cond;
+    if (newIf.do && typeof newIf.do === "object") {
+      newIf.do = injectDynamicValues(
+        newIf.do as any,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      );
+    }
+
+    if (newIf.else && typeof newIf.else === "object") {
+      newIf.else = injectDynamicValues(
+        newIf.else as any,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      );
+    }
+
+    return { ...cond, if: newIf };
+  }
+
+  // ---- EXISTS (query.where) ----
+  if ("query" in cond && cond.query) {
+    const newQuery = { ...cond.query };
+
+    if (newQuery.where) {
+      newQuery.where = injectDynamicValues(
+        newQuery.where,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      ) as WhereCondition;
+    }
+
+    return { ...cond, query: newQuery };
+  }
+
+  // ---- SIMPLE CONDITION ----
+  if ("value" in cond || "left_value" in cond) {
+    let newCond: any = { ...cond };
+
+    if ("value" in newCond) {
+      newCond.value = resolveCustomValue(
+        newCond.value,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      );
+    }
+
+    if ("left_value" in newCond) {
+      newCond.left_value = resolveCustomValue(
+        newCond.left_value,
+        user,
+        query,
+        tableMap,
+        default_table_name
+      );
+    }
+
+    // ---- IN subquery (value.where) ----
+    if (
+      newCond.value &&
+      typeof newCond.value === "object" &&
+      "select" in newCond.value
+    ) {
+      const sub = { ...newCond.value };
+
+      if (sub.where) {
+        sub.where = injectDynamicValues(
+          sub.where,
+          user,
+          query,
+          tableMap,
+          default_table_name
+        ) as WhereCondition;
+      }
+
+      newCond.value = sub;
+    }
+
+    // ---- IN subquery (left_value.where) ----
+    if (
+      newCond.left_value &&
+      typeof newCond.left_value === "object" &&
+      "select" in newCond.left_value
+    ) {
+      const sub = { ...newCond.left_value };
+
+      if (sub.where) {
+        sub.where = injectDynamicValues(
+          sub.where,
+          user,
+          query,
+          tableMap,
+          default_table_name
+        ) as WhereCondition;
+      }
+
+      newCond.left_value = sub;
+    }
+
+    return newCond;
+  }
+
+  return cond;
 }
 
+// extract the map of the table
 export function extractTableMap<T extends { table: any }>(
   structure: Record<string, T>
 ): Record<string, T["table"]> {

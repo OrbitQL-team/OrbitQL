@@ -1,7 +1,7 @@
 import { GelDatabase } from "drizzle-orm/gel-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase, TableConfig as PgTableConfig } from "drizzle-orm/pg-core";
+import { PgDatabase } from "drizzle-orm/pg-core";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { LibSQLDatabase } from "drizzle-orm/libsql";

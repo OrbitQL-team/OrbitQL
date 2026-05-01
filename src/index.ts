@@ -1,5 +1,5 @@
 import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions } from "./types.ts";
-import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, injectDynamicValues, stripPrefixes, resolveCustomValue } from "./rbac.ts";
+import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
 
@@ -46,14 +46,20 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, table_name);
 
   let combinedWhere: WhereCondition | undefined;
-  if (query.where && aclWhere) {
+  let query_where = query.where
+  if (query_where && aclWhere) {
     combinedWhere = {
-      and: [query.where, aclWhere]
+      and: [query_where, aclWhere]
     };
-  } else if (query.where) {
-    combinedWhere = query.where;
+  } else if (query_where) {
+    combinedWhere = query_where;
   } else if(aclWhere) {
     combinedWhere = aclWhere
+  }
+
+  if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
+    const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, tableStruct.table)
+    if(!has_been_accepted) throw new Error("Not allowed")
   }
 
   let limit = null
@@ -65,11 +71,6 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   const return_before = rolePermissions.return_before ?? false
   const return_after = rolePermissions.return_after ?? false
-
-  if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
-    const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, tableStruct.table)
-    if(!has_been_accepted) throw new Error("Not allowed")
-  }
 
   const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, tableStruct.table, table_name) : false
 
