@@ -172,8 +172,7 @@ export const SAFE_OPERATORS = [
   "IS NULL",
   "IS NOT NULL",
   "BETWEEN",
-  "IN",
-  "EXISTS"
+  "IN"
 ] as const;
 
 export type SafeOperator = typeof SAFE_OPERATORS[number];
@@ -198,6 +197,12 @@ export type StructuredQuery = {
   [key: string]: any;
 };
 
+export type Join = {
+  table: keyof Structure;
+  type: "INNER" | "LEFT";       // RIGHT & FULL removed (not supported + unsafe)
+  on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
+};
+
 type OperatorAlias =
   | { operator: SafeOperator; op?: never }
   | { op: SafeOperator; operator?: never };
@@ -208,11 +213,25 @@ export type SimpleCondition = OperatorAlias & {
   value?: any;
 };
 
-export type Join = {
-  table: keyof Structure;
-  type: "INNER" | "LEFT";       // RIGHT & FULL removed (not supported + unsafe)
-  on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
-};
+export type ExistsCondition =
+  | {
+      operator: "EXISTS";
+      op?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    }
+  | {
+      op: "EXISTS";
+      operator?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    };
 
 type NotCondition = {
   not: WhereCondition | SubqueryCondition;
@@ -250,7 +269,7 @@ type IfCondition = {
 export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
-export type WhereCondition = SimpleCondition | NestedCondition;
+export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition;
 
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
@@ -258,9 +277,9 @@ export type SubqueryCondition = {
   left_value?: any; //supports $data - $user - $col - any
   operator: "IN";
   value: {
-    select: string;
+    select: string[] | string;
     from: string;
-    where?: WhereCondition[];
+    where?: WhereCondition;
   };
 };
 

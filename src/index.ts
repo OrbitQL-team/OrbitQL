@@ -67,13 +67,11 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const return_after = rolePermissions.return_after ?? false
 
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
-    const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, query, tableStruct.table)
+    const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, tableStruct.table)
     if(!has_been_accepted) throw new Error("Not allowed")
   }
 
-  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, query, tableStruct.table, table_name) : false
-
-  const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
+  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, tableStruct.table, table_name) : false
 
   let user_select_data_fields: Record<string, any> = {};
 
@@ -101,14 +99,17 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       break;
     }
     case 'PUT': {
+      const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
       result = await put_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit, return_before, return_after)
       break;
     }
     case 'POST': {
+      const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
       result = await post_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, return_after)
       break;
     }
     case 'DELETE': {
+      const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
       result = await delete_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, built_where, limit, return_before)
       break;
     }

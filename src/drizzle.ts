@@ -14,13 +14,13 @@ import {
   getTableName
 } from "drizzle-orm";
 import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Endpoint, Response, RolePermissions, TriggerStructure, BuildWhereOptions } from "./types.ts";
-import { injectDynamicValues, is_op_type, is_undefined, resolveCustomValue, stripPrefixes } from "./rbac";
+import { alias_selected_fields, injectDynamicValues, is_op_type, is_undefined, resolve_fields, resolveCustomValue, stripPrefixes } from "./rbac";
 import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
   BUILD JOIN
 ───────────────────────────────────────────────*/
-export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Record<string, any>, user: any, query: StructuredQuery, default_table:any) {
+export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Record<string, any>, user: any, role:string, structure: Structure, query: StructuredQuery, default_table:any) {
   for (const j of joins) {
     const joinStruct = tableMap[j.table];
     if (!joinStruct) throw new Error(`Table '${j.table}' not found in tableMap`);
@@ -30,7 +30,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
     // Support object with AND/OR inside 'on'
     if (j.on && (j.on.type === "and" || j.on.type === "or")) {
       // Complex condition
-      joinCondition = await buildWhere(db, j.on, tableMap, user, query, default_table, getTableName(default_table));
+      joinCondition = await buildWhere(db, j.on, tableMap, user, role, structure, query, default_table, getTableName(default_table));
     } else {
       // Simple key-value mapping
       const conditions: any[] = [];
@@ -64,7 +64,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
 /*───────────────────────────────────────────────
   BUILD WHERE
 ───────────────────────────────────────────────*/
-export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, query: StructuredQuery, default_table:any, default_table_name: string): Promise<any> {
+export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string): Promise<any> {
   // Nested AND/OR
   if ('and' in cond || 'or' in cond) {
     let parts: SQLWrapper[] = [];
@@ -72,13 +72,13 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if ("and" in cond && cond.and) {
         parts = await Promise.all(
             cond.and.map((c) =>
-                buildWhere(db, c, tableMap, user, query, default_table, default_table_name)
+                buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
             )
         );
     } else if ("or" in cond && cond.or) {
         parts = await Promise.all(
             cond.or.map((c) =>
-                buildWhere(db, c, tableMap, user, query, default_table, default_table_name)
+                buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
             )
         );
     }
@@ -99,13 +99,13 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   }
   else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
     let condition:any = sql``
-    const when_condition = await if_condition(db, cond.if.when, tableMap, user, query, default_table)
+    const when_condition = await if_condition(db, cond.if.when, tableMap, user, role, structure, query, default_table)
     if("do" in cond.if) {
       if(when_condition) {
         let do_condition
         if(typeof cond.if.do == 'object') {
           if(("type" in cond.if.do)) throw Error('Structured Query not allowed in where condition')
-          else do_condition = await buildWhere(db, cond.if.do, tableMap, user, query, default_table, default_table_name)
+          else do_condition = await buildWhere(db, cond.if.do, tableMap, user, role, structure, query, default_table, default_table_name)
         }
         else if(typeof cond.if.do == 'boolean') return cond.if.do
         else if(cond.if.do) do_condition = sql`${cond.if.do}`
@@ -116,7 +116,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
         let else_condition
         if(typeof cond.if.else == 'object') {
           if(("type" in cond.if.else)) throw Error('Structured Query not allowed in where condition')
-          else else_condition = await buildWhere(db, cond.if.else, tableMap, user, query, default_table, default_table_name)
+          else else_condition = await buildWhere(db, cond.if.else, tableMap, user, role, structure, query, default_table, default_table_name)
         }
         else if(typeof cond.if.else == 'boolean') return cond.if.else
         else if(cond.if.else) else_condition = sql`${cond.if.else}`
@@ -126,7 +126,29 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     }
     return condition
   }else if('not' in cond && cond.not) {
-    return not(await buildWhere(db, cond.not, tableMap, user, query, default_table, default_table_name))
+    return not(await buildWhere(db, cond.not, tableMap, user, role, structure, query, default_table, default_table_name))
+  }
+
+  if (cond && ('op' in cond || 'operator' in cond) && is_op_type(cond, "EXISTS") && 'query' in cond) {
+    let subTable = null
+    let fields = null
+    let subWhere = null
+    const sub_query = cond.query
+    if(sub_query) {
+      subTable = tableMap[sub_query.from];
+      if (!subTable) throw new Error(`Table '${sub_query.from}' not found`);
+      fields = resolve_fields(structure, sub_query.select, 'GET', role, subTable, tableMap);
+      fields = alias_selected_fields(fields);
+      if(!fields) throw new Error(`Inner fields not found`);
+      subWhere = sub_query.where
+        ? await buildWhere(db, sub_query.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+        : undefined;
+    }
+    let inner_query = db.select(fields).from(subTable)
+    if(subWhere) {
+      inner_query = inner_query.where(subWhere)
+    }
+    return exists(inner_query);
   }
 
   // Determine left side
@@ -174,57 +196,22 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if (right && typeof right === "object" && "select" in right) {
       const subTable = tableMap[right.from];
       if (!subTable) throw new Error(`Table '${right.from}' not found`);
-      const subColumn = subTable[right.select];
-      if (!subColumn) throw new Error(`Column '${right.select}' not in table '${right.from}'`);
+      let fields = resolve_fields(structure, right.select, 'GET', role, subTable, tableMap);
+      fields = alias_selected_fields(fields);
+      if(!fields) throw new Error(`Inner fields not found`);
       const subWhere = right.where
-        ? await buildWhere(db, right.where, tableMap, user, query, default_table, default_table_name)
+        ? await buildWhere(db, right.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
         : undefined;
-      return inArray(left, db.select({ val: subColumn }).from(subTable).where(subWhere));
+      let inner_query = db.select(fields).from(subTable)
+      if(subWhere) {
+        inner_query = inner_query.where(subWhere)
+      }
+      return inArray(left, inner_query);
     }
-
     // Normal IN array
     if (Array.isArray(right)) return inArray(left, right);
   }else if(is_op_type(cond, "IN")) {
     return sql`false`
-  }
-
-  // Subquery EXISTS
-  if (is_op_type(cond, "EXISTS")) {
-    let subTable = null
-    let subColumn = null
-    let subWhere = null
-    if(left && typeof left === "object" && "select" in left) {
-      subTable = tableMap[left.from];
-      if (!subTable) throw new Error(`Table '${left.from}' not found`);
-      subColumn = subTable[left.select];
-      if (!subColumn) throw new Error(`Column '${left.select}' not in table '${left.from}'`);
-      subWhere = left.where
-        ? and(
-            ...(await Promise.all(
-              left.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
-              )
-            ))
-          )
-        : undefined;
-    }
-    else if(right && typeof right === "object" && "select" in right) {
-      subTable = tableMap[right.from];
-      if (!subTable) throw new Error(`Table '${right.from}' not found`);
-      subColumn = subTable[right.select];
-      if (!subColumn) throw new Error(`Column '${right.select}' not in table '${right.from}'`);
-      subWhere = right.where
-        ? and(
-            ...(await Promise.all(
-              right.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
-              )
-            ))
-          )
-        : undefined;
-      return inArray(left, db.select({ val: subColumn }).from(subTable).where(subWhere));
-    }
-    if(subTable && subColumn && subWhere) return exists(db.select({ val: subColumn }).from(subTable).where(subWhere));
   }
 
   const operator = cond.operator ?? cond.op
@@ -341,8 +328,8 @@ export async function run_after(db:Database, options:BuildWhereOptions, query:St
 /*───────────────────────────────────────────────
   IF CONDITION
 ───────────────────────────────────────────────*/
-export async function if_condition(db:Database, where_condtion:WhereCondition, table_map:any, user:any, query:StructuredQuery, default_table:any):Promise<boolean> {
-  let where = await buildWhere(db, where_condtion, table_map, user, query, default_table, getTableName(default_table));
+export async function if_condition(db:Database, where_condtion:WhereCondition, table_map:any, user:any, role: string, structure: Structure, query:StructuredQuery, default_table:any):Promise<boolean> {
+  let where = await buildWhere(db, where_condtion, table_map, user, role, structure, query, default_table, getTableName(default_table));
 
   // Start empty SQL object
   const need_table:boolean = has_field_or_col_attribute(where_condtion)
@@ -355,7 +342,7 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
     result: check_query
   }).from(from_table)
 
-  if(query.join) await buildJoin(db, builded_query, query.join, table_map, user, query, from_table)
+  if(query.join) await buildJoin(db, builded_query, query.join, table_map, user, role, structure, query, from_table)
 
   builded_query.limit(1)
   const [rows]: any = await builded_query.execute()
@@ -416,7 +403,7 @@ export function is_allowed_empty(allowed: FieldPermission) {
 export async function get_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
   const q = db.select(selected_data_fields).from(tableStruct.table);
 
-  if (query.join) await buildJoin(db, q, query.join, tableMap, user, query, tableStruct.table);
+  if (query.join) await buildJoin(db, q, query.join, tableMap, user, role, structure, query, tableStruct.table);
 
   if (built_where) q.where(built_where);
 
@@ -607,7 +594,7 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
   for(let trigger of timing_filtered_triggers) {
     if("if" in trigger.query) {
       const condition = trigger.query.if
-      const when_condition = await if_condition(db, condition.when, tableMap, user, query, tableStruct.table)
+      const when_condition = await if_condition(db, condition.when, tableMap, user, role, structure, query, tableStruct.table)
       if(when_condition && condition.do) {
         if(typeof condition.do == "object" && "type" in condition.do) {
           await build_query(db, condition.do, user, role, structure, {
@@ -640,6 +627,8 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
         set.when,
         tableMap,
         user,
+        role,
+        structure,
         query,
         tableStruct.table,
         table_name

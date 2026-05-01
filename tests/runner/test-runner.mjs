@@ -11,7 +11,6 @@ import user_role from '../saved/user_role.mjs'
 import { navigate_object } from './object-navigator-editor.mjs';
 import prompts from 'prompts';
 import { save_to_file } from './save-to-file.mjs';
-
 async function main() {
   let back = false;
 
@@ -33,9 +32,10 @@ async function main() {
       }
     }
   );
-  if(test.type == 'default') {
+  if(test.type == 'custom') {
     //Create db connection
-    let db = await createConnection(db_select);
+    do{
+      let db = await createConnection(select);
 
       const user_type = await prompts(
         {
@@ -64,7 +64,6 @@ async function main() {
 
     const env = {
       ...process.env,
-      DB_FAMILY: db_select.family,
       DB_HOST:db.db_address,
       DB_USER:db.user_name,
       DB_PWD:db.password,
@@ -77,18 +76,6 @@ async function main() {
         back = true;
         continue;
     }
-
-    //run vitest
-    const child = isWin
-      ? spawn("cmd.exe", ["/d", "/s", "/c", "npx", "vitest", "run"], {
-          stdio: "inherit",
-          env,
-        })
-      : spawn("npx", ["vitest", "run"], {
-          stdio: "inherit",
-          env,
-    });
-
       // Run Vitest
       const child = spawn('npx', ['vitest', 'run'], {
         stdio: 'inherit',
@@ -106,7 +93,6 @@ async function main() {
       child.on('exit', (code) => {
         process.exit(code ?? 0);
       });
-
     } while (back);
   }
 }
