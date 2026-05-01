@@ -1,5 +1,5 @@
 export default {
   "type": "GET",
-  "select": "*",
+  "select": ['*'],
   "table": "users"
 };

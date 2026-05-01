@@ -81,24 +81,42 @@ export type TableStructure = {
   table: any;
 };
 
+export const BuildWhereOptionsDefaults:BuildWhereOptions = {
+  disable_triggers: false,
+  after: false
+}
+
+export type BuildWhereOptions = {
+  disable_triggers?: boolean,
+  after?: number | boolean
+}
+
+export type Set_Value = {
+  set: {
+    field: string;
+    when: WhereCondition | SubqueryCondition;
+    value: any;
+    else_value?: any;
+  }
+}
+
 export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
+export type TriggerStructure = {
+  type: "BEFORE" | "AFTER";
+  query: StructuredQuery & IfCondition & Set_Value;
+}
 
 // Endpoint structure
 export type Endpoint = {
   // Explicit properties
   type: EndpointType;
-  order_by?: string[];
-  direction?: "asc" | "desc";
+  triggers?: TriggerStructure[];
   
   // Dynamic role properties
   [role: string]: 
     | RolePermissions 
     | typeof NONE 
-    | string[]
-    | "asc"
-    | "desc"
-    | EndpointType
-    | undefined;
+    | any;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -117,8 +135,9 @@ type Limit = { limit?: number };
 
 type ReturnBeforeStatus = { return_before?: boolean };
 type ReturnAfterStatus = { return_after?: boolean };
+type OrderBy = { order_by?: string[]; direction?: "asc" | "desc" };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus;
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus & OrderBy;
 
 export type Response = {
   before: any,
@@ -220,8 +239,8 @@ type OrCondition = {
 type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
-    do?: WhereCondition | SubqueryCondition | boolean;
-    else?: WhereCondition | SubqueryCondition | boolean;
+    do?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;
+    else?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;
   };
   not?: never;
   and?: never;

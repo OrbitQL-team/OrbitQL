@@ -4,28 +4,13 @@ export default {
       {
         "type": "GET",
         "user": {
-          "allow": {
-            "field": [
-              "id",
-              "name",
-              "email",
-              "surname"
-            ],
-            "where": {
-              "and": [
-                {
-                  "field": "id",
-                  "op": "=",
-                  "value": "$user.id"
-                },
-                {
-                  "left_value": "$user.have_access",
-                  "op": "=",
-                  "value": 1
-                }
-              ]
-            }
-          }
+          "allow": [
+            "id",
+            "name",
+            "email",
+            "surname"
+          ],
+          "disallowed": "",
         },
         "admin": {
           "allowed": {
@@ -37,8 +22,9 @@ export default {
             }
           },
           "disallowed": "",
-          "limit": 1
-        }
+          "order_by": ["name"],
+          "direction": "asc"
+        },
       },
       {
         "type": "PUT",
@@ -52,19 +38,23 @@ export default {
               "and": [
                 {
                   "if": {
-                    "value": "$data.name",
-                    "op": "IS NOT NULL"
+                    "when": {
+                      "value": "$data.name",
+                      "op": "IS NOT NULL"
+                    },
+                    "do": true,
+                    "else": false
                   },
-                  "do": true,
-                  "else": false
                 },
                 {
                   "if": {
-                    "value": "$data.surname",
-                    "op": "IS NOT NULL"
+                    "when": {
+                      "value": "$data.surname",
+                      "op": "IS NOT NULL"
+                    },
+                    "do": true,
+                    "else": false
                   },
-                  "do": true,
-                  "else": false
                 },
                 {
                   "field": "id",
@@ -92,15 +82,82 @@ export default {
               "value": 1
             }
           },
-          "disallowed": ""
-        }
+          "disallowed": "",
+          "return_after": 1
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "=",
+                  "value": "Daniele"
+                },
+                "value": "wela"
+              }
+            }
+          },
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "surname",
+                "when": {
+                  "field": "surname",
+                  "op": "=",
+                  "value": "Zucchelli"
+                },
+                "value": "wela"
+              }
+            }
+          }
+        ]
       },
       {
         "type": "POST",
         "user": {
           "allowed": [],
           "disallowed": []
-        }
+        },
+        "admin": {
+          "allowed": "*",
+          "return_after": 1
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          },
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "surname",
+                "when": {
+                  "field": "surname",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          }
+        ]
       },
       {
         "type": "DELETE",
