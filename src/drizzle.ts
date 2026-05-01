@@ -177,13 +177,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       const subColumn = subTable[right.select];
       if (!subColumn) throw new Error(`Column '${right.select}' not in table '${right.from}'`);
       const subWhere = right.where
-        ? and(
-            ...(await Promise.all(
-              right.where.map((w: any) =>
-                buildWhere(db, w, tableMap, user, query, default_table, default_table_name)
-              )
-            ))
-          )
+        ? await buildWhere(db, right.where, tableMap, user, query, default_table, default_table_name)
         : undefined;
       return inArray(left, db.select({ val: subColumn }).from(subTable).where(subWhere));
     }
