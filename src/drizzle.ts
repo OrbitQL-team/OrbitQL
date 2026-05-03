@@ -14,7 +14,7 @@ import {
   getTableName
 } from "drizzle-orm";
 import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Response, RolePermissions, TriggerStructure, BuildWhereOptions } from "./types.ts";
-import { alias_selected_fields, injectDynamicValues, is_op_type, resolve_fields, resolveCustomValue } from "./rbac";
+import { alias_selected_fields, is_op_type, resolve_fields, resolveCustomValue } from "./rbac";
 import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
@@ -261,12 +261,6 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
   // Start with undefined
   let aclWhere: WhereCondition | null = null;
 
-  // Helper to inject if `where` exists
-  //function injectIfExists(obj: any) {
-  //  return obj && obj.where ? (injectDynamicValues(obj.where, user, query, tableMap, default_table_name) as WhereCondition) : undefined;
-  //}
-
-  // !NEED TO BE TESTED AND SEE IF IS USELESS INJECTDYNAMICVALUES
   function injectIfExists(obj: any) {
      return obj && obj.where ? (obj.where as WhereCondition) : undefined;
   }
