@@ -431,202 +431,168 @@ export function validate_where_fields(
   role: string,
   type: string
 ): WhereCondition | SubqueryCondition {
+
+  if (!cond || typeof cond !== "object") return cond;
+
+  let newCond= { ...cond };
+
   // ---- AND ----
-    if ("and" in cond && cond.and && Array.isArray(cond.and)) {
-        return {
-            ...cond,
-            and: cond.and.map(c =>
-                validate_where_fields(c, tableMap, default_table, structure, role, type) as WhereCondition
-            ),
-        };
+  if ("and" in newCond && Array.isArray(newCond.and)) {
+    newCond.and = newCond.and.map(c =>
+      validate_where_fields(c, tableMap, default_table, structure, role, type)
+    );
+  }
+
+  // ---- OR ----
+  if ("or" in newCond && Array.isArray(newCond.or)) {
+    newCond.or = newCond.or.map(c =>
+      validate_where_fields(c, tableMap, default_table, structure, role, type)
+    );
+  }
+
+  // ---- NOT ----
+  if ("not" in newCond && newCond.not) {
+    newCond.not = validate_where_fields(
+      newCond.not,
+      tableMap,
+      default_table,
+      structure,
+      role,
+      type
+    );
+  }
+
+  // ---- IF ----
+  if ("if" in newCond && newCond.if && typeof newCond.if === "object") {
+    const newIf = { ...newCond.if };
+
+    if (newIf.when) {
+      newIf.when = validate_where_fields(
+        newIf.when,
+        tableMap,
+        default_table,
+        structure,
+        role,
+        type
+      );
     }
 
-    // ---- OR ----
-    if ("or" in cond && cond.or && Array.isArray(cond.or)) {
-        return {
-            ...cond,
-            or: cond.or.map(c =>
-                validate_where_fields(c, tableMap, default_table, structure, role, type) as WhereCondition
-            ),
-        };
+    if (newIf.do && typeof newIf.do === "object" && !("type" in newIf.do)) {
+      newIf.do = validate_where_fields(
+        newIf.do,
+        tableMap,
+        default_table,
+        structure,
+        role,
+        type
+      );
     }
 
-    // ---- NOT ----
-    if ("not" in cond && cond.not) {
-        return {
-            ...cond,
-            not: validate_where_fields(
-                cond.not,
-                tableMap,
-                default_table,
-                structure,
-                role,
-                type
-            ) as WhereCondition,
-        };
+    if (newIf.else && typeof newIf.else === "object" && !("type" in newIf.else)) {
+      newIf.else = validate_where_fields(
+        newIf.else,
+        tableMap,
+        default_table,
+        structure,
+        role,
+        type
+      );
     }
 
-    // ---- IF ----
-    if ("if" in cond && cond.if) {
-        const newIf = { ...cond.if };
+    newCond.if = newIf;
+  }
 
-        if (newIf.when) {
-            newIf.when = validate_where_fields(
-                newIf.when,
-                tableMap,
-                default_table,
-                structure,
-                role,
-                type
-            ) as WhereCondition;
-        }
+  // ---- EXISTS / SUBQUERY ----
+  if ("query" in newCond && newCond.query) {
+    const newQuery = { ...newCond.query };
 
-        if (newIf.do && typeof newIf.do === "object") {
-            newIf.do = validate_where_fields(
-                newIf.do as any,
-                tableMap,
-                default_table,
-                structure,
-                role,
-                type
-            );
-        }
-
-        if (newIf.else && typeof newIf.else === "object") {
-            newIf.else = validate_where_fields(
-                newIf.else as any,
-                tableMap,
-                default_table,
-                structure,
-                role,
-                type
-            );
-        }
-
-        return { ...cond, if: newIf };
+    if (newQuery.where) {
+      newQuery.where = validate_where_fields(
+        newQuery.where,
+        tableMap,
+        default_table,
+        structure,
+        role,
+        type
+      );
     }
 
-    // ---- EXISTS (query.where) ----
-    if ("query" in cond && cond.query) {
-        const newQuery = { ...cond.query };
+    newCond.query = newQuery;
+  }
 
-        if (newQuery.where) {
-            newQuery.where = validate_where_fields(
-                newQuery.where,
-                tableMap,
-                default_table,
-                structure,
-                role,
-                type
-            ) as WhereCondition;
-        }
+  // ---- helper to validate $col ----
+  const validateColRef = (val: any) => {
+    if (typeof val === "string") {
+      const match = val.match(/^\$col\.(.+)$/);
+      if (match) {
+        const field = match[1];
 
-        return { ...cond, query: newQuery };
-    }
-
-    // ---- SIMPLE CONDITION ----
-    if ("value" in cond) {
-        let newCond: any = { ...cond };``
-
-        // ---- IN subquery (value.where) ----
-        if (
-            newCond.value &&
-            typeof newCond.value === "object" &&
-            "select" in newCond.value
-        ) {
-            const sub = { ...newCond.value };
-
-            if (sub.where) {
-                sub.where = validate_where_fields(
-                sub.where,
-                tableMap,
-                default_table,
-                structure,
-                role,
-                type
-                ) as WhereCondition;
-            }
-
-            newCond.value = sub;
-        }
-
-        if (
-            newCond.value && typeof newCond.value === "string" && newCond.value.match(/^\$col\.(.+)$/)
-        ) {
-            const sub = { ...newCond.value.match(/^\$col\.(.+)$/)![1] };
-
-            const allowed = resolve_field(
-                sub,
-                default_table,
-                structure,
-                type,
-                role,
-                tableMap         
-            )
-            if(!allowed) throw Error('Field not allowed in where codition')
-        }
-
-        return newCond;
-    }
-
-    if ("left_value" in cond) {
-        let newCond: any = { ...cond };``
-
-        // ---- IN subquery (left_value.where) ----
-        if (
-            newCond.left_value &&
-            typeof newCond.left_value === "object" &&
-            "select" in newCond.left_value
-        ) {
-            const sub = { ...newCond.left_value };
-
-            if (sub.where) {
-                sub.where = validate_where_fields(
-                    sub.where,
-                    tableMap,
-                    default_table,
-                    structure,
-                    role,
-                    type
-                ) as WhereCondition;
-            }
-
-            newCond.left_value = sub;
-        }
-
-        if (
-            newCond.left_value && typeof newCond.left_value === "string" && newCond.left_value.match(/^\$col\.(.+)$/)
-        ) {
-            const sub = { ...newCond.left_value.match(/^\$col\.(.+)$/)![1] };
-
-            const allowed = resolve_field(
-                sub,
-                default_table,
-                structure,
-                type,
-                role,
-                tableMap         
-            )
-            if(!allowed) throw Error('Field not allowed in where codition')
-        }
-
-        return newCond;
-    }
-
-    // ** Check if field is allowed
-    if("field" in cond && cond.field) {
         const allowed = resolve_field(
-            cond.field,
-            default_table,
-            structure,
-            type,
-            role,
-            tableMap         
-        )
-        if(!allowed) throw Error('Field not allowed in where codition')
-    }
+          field,
+          default_table,
+          structure,
+          type,
+          role,
+          tableMap
+        );
 
-    return cond;
+        if (!allowed) {
+          throw Error("Field not allowed in where condition");
+        }
+      }
+    }
+  };
+
+  // ---- helper for subqueries ----
+  const handleSubquery = (val: any) => {
+    if (val && typeof val === "object" && "select" in val) {
+      const sub = { ...val };
+
+      if (sub.where) {
+        sub.where = validate_where_fields(
+          sub.where,
+          tableMap,
+          default_table,
+          structure,
+          role,
+          type
+        );
+      }
+
+      return sub;
+    }
+    return val;
+  };
+
+  // ---- VALUE ----
+  if ("value" in newCond) {
+    newCond.value = handleSubquery(newCond.value);
+    validateColRef(newCond.value);
+  }
+
+  // ---- LEFT VALUE ----
+  if ("left_value" in newCond) {
+    newCond.left_value = handleSubquery(newCond.left_value);
+    validateColRef(newCond.left_value);
+  }
+
+  // ---- FIELD ----
+  if ("field" in newCond && newCond.field) {
+    const allowed = resolve_field(
+      newCond.field,
+      default_table,
+      structure,
+      type,
+      role,
+      tableMap
+    );
+
+    if (!allowed) {
+      throw Error("Field not allowed in where condition");
+    }
+  }
+
+  return newCond;
 }
 
 // extract the map of the table

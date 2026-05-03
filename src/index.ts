@@ -49,10 +49,10 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, table_name);
 
   let combinedWhere: WhereCondition | undefined;
-  let query_where = query.where ? validate_where_fields(query.where, tableMap, default_table, structure, role, query_type) : query.where
+  let query_where = query.where ? validate_where_fields(query.where, tableMap, table_name, structure, role, query_type) : query.where
   if (query_where && aclWhere) {
     combinedWhere = {
-      and: [query_where, aclWhere]
+      and: [aclWhere, query_where]
     };
   } else if (query_where) {
     combinedWhere = query_where;
