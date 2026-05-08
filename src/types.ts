@@ -172,7 +172,9 @@ export const SAFE_OPERATORS = [
   "IS NULL",
   "IS NOT NULL",
   "BETWEEN",
-  "IN"
+  "NOT BETWEEN",
+  "IN",
+  "NOT IN"
 ] as const;
 
 export type SafeOperator = typeof SAFE_OPERATORS[number];
@@ -233,6 +235,26 @@ export type ExistsCondition =
       };
     };
 
+export type NotExistsCondition =
+  | {
+      operator: "NOT EXISTS";
+      op?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    }
+  | {
+      op: "NOT EXISTS";
+      operator?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    };
+
 type NotCondition = {
   not: WhereCondition | SubqueryCondition;
   and?: never;
@@ -269,7 +291,7 @@ type IfCondition = {
 export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
-export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition;
+export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition;
 
 // Subquery structure for IN conditions
 export type SubqueryCondition = {

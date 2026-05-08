@@ -1,5 +1,5 @@
 import { count } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
 
 // * Alias selected fields from the user
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
@@ -417,7 +417,7 @@ export function resolveCustomValue(
 }
 
 // * checks operator type
-export function is_op_type(condition:SimpleCondition | ExistsCondition, text:string) {
+export function is_op_type(condition:SimpleCondition | ExistsCondition | NotExistsCondition, text:string) {
     return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
 }
 
