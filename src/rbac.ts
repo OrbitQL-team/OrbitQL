@@ -1,5 +1,5 @@
 import { count } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
 
 // * Alias selected fields from the user
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
@@ -9,6 +9,55 @@ export function alias_selected_fields(fields: Record<string, any>): Record<strin
     aliased[key] = col;
   }
   return aliased;
+}
+
+function resolve_field(entry:string, default_table:string, structure: Structure, type:string, role:string, tableMap: Record<string, Record<string, any>>):boolean {
+    let table: string;
+    let field: string;
+
+    console.log('ENTRY: ',entry)
+    const isCount = entry.startsWith("$count.");
+    const plain_entry = isCount ? entry.slice(7) : entry;
+    console.log('IS COUNT: ', isCount)
+
+    if (plain_entry.includes(".")) [table, field] = plain_entry.split(".");
+    else {
+        table = default_table;
+        field = plain_entry;
+    }
+
+    const tableStruct = structure[table];
+    if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+
+    const endpoint = tableStruct.endpoints.find(e => e.type === type);
+    if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
+
+    const rolePermissions = endpoint[role];
+    if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
+        return false;
+    }
+
+    const allowed =
+        'allowed' in rolePermissions
+            ? rolePermissions.allowed
+            : 'allow' in rolePermissions
+            ? rolePermissions.allow
+            : [];
+
+    const disallowed =
+        'disallowed' in rolePermissions
+            ? rolePermissions.disallowed ?? []
+            : 'deny' in rolePermissions
+            ? rolePermissions.deny ?? []
+            : [];
+
+    if (!resolve_allowed_fields(field, allowed, disallowed)) {
+        console.log("TABLE: ", table)
+        console.log("REMOVED: ",field)
+        return false
+    };
+    if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
+    return true
 }
 
 // * Resolve allowed fields
@@ -287,7 +336,7 @@ export function resolveCustomValue(
     if (!value) return value;
 
     // ------------------------
-    // Handle object: { $col: ... }
+    // Handle object: $col.X
     // ------------------------
     let match = typeof value === "string" && value.match(/^\$col\.(.+)$/);
 
@@ -368,177 +417,182 @@ export function resolveCustomValue(
 }
 
 // * checks operator type
-export function is_op_type(condition:SimpleCondition | ExistsCondition, text:string) {
+export function is_op_type(condition:SimpleCondition | ExistsCondition | NotExistsCondition, text:string) {
     return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
 }
 
 // * inject dynamic values inside of where condition
 // ! probably not necessary?
-export function injectDynamicValues(
+export function validate_where_fields(
   cond: WhereCondition | SubqueryCondition,
-  user: any,
-  query: StructuredQuery,
   tableMap: Record<string, any>,
-  default_table_name: string
+  default_table: string,
+  structure: Structure,
+  role: string,
+  type: string
 ): WhereCondition | SubqueryCondition {
+
+  if (!cond || typeof cond !== "object") return cond;
+
+  let newCond= { ...cond };
+
   // ---- AND ----
-  if ("and" in cond && cond.and && Array.isArray(cond.and)) {
-    return {
-      ...cond,
-      and: cond.and.map(c =>
-        injectDynamicValues(c, user, query, tableMap, default_table_name) as WhereCondition
-      ),
-    };
+  if ("and" in newCond && Array.isArray(newCond.and)) {
+    newCond.and = newCond.and.map(c =>
+      validate_where_fields(c, tableMap, default_table, structure, role, type)
+    );
   }
 
   // ---- OR ----
-  if ("or" in cond && cond.or && Array.isArray(cond.or)) {
-    return {
-      ...cond,
-      or: cond.or.map(c =>
-        injectDynamicValues(c, user, query, tableMap, default_table_name) as WhereCondition
-      ),
-    };
+  if ("or" in newCond && Array.isArray(newCond.or)) {
+    newCond.or = newCond.or.map(c =>
+      validate_where_fields(c, tableMap, default_table, structure, role, type)
+    );
   }
 
   // ---- NOT ----
-  if ("not" in cond && cond.not) {
-    return {
-      ...cond,
-      not: injectDynamicValues(
-        cond.not,
-        user,
-        query,
-        tableMap,
-        default_table_name
-      ) as WhereCondition,
-    };
+  if ("not" in newCond && newCond.not) {
+    newCond.not = validate_where_fields(
+      newCond.not,
+      tableMap,
+      default_table,
+      structure,
+      role,
+      type
+    );
   }
 
   // ---- IF ----
-  if ("if" in cond && cond.if) {
-    const newIf = { ...cond.if };
+  if ("if" in newCond && newCond.if && typeof newCond.if === "object") {
+    const newIf = { ...newCond.if };
 
     if (newIf.when) {
-      newIf.when = injectDynamicValues(
+      newIf.when = validate_where_fields(
         newIf.when,
-        user,
-        query,
         tableMap,
-        default_table_name
-      ) as WhereCondition;
-    }
-
-    if (newIf.do && typeof newIf.do === "object") {
-      newIf.do = injectDynamicValues(
-        newIf.do as any,
-        user,
-        query,
-        tableMap,
-        default_table_name
+        default_table,
+        structure,
+        role,
+        type
       );
     }
 
-    if (newIf.else && typeof newIf.else === "object") {
-      newIf.else = injectDynamicValues(
-        newIf.else as any,
-        user,
-        query,
+    if (newIf.do && typeof newIf.do === "object" && !("type" in newIf.do)) {
+      newIf.do = validate_where_fields(
+        newIf.do,
         tableMap,
-        default_table_name
+        default_table,
+        structure,
+        role,
+        type
       );
     }
 
-    return { ...cond, if: newIf };
+    if (newIf.else && typeof newIf.else === "object" && !("type" in newIf.else)) {
+      newIf.else = validate_where_fields(
+        newIf.else,
+        tableMap,
+        default_table,
+        structure,
+        role,
+        type
+      );
+    }
+
+    newCond.if = newIf;
   }
 
-  // ---- EXISTS (query.where) ----
-  if ("query" in cond && cond.query) {
-    const newQuery = { ...cond.query };
+  // ---- EXISTS / SUBQUERY ----
+  if ("query" in newCond && newCond.query) {
+    const newQuery = { ...newCond.query };
 
     if (newQuery.where) {
-      newQuery.where = injectDynamicValues(
+      newQuery.where = validate_where_fields(
         newQuery.where,
-        user,
-        query,
         tableMap,
-        default_table_name
-      ) as WhereCondition;
-    }
-
-    return { ...cond, query: newQuery };
-  }
-
-  // ---- SIMPLE CONDITION ----
-  if ("value" in cond || "left_value" in cond) {
-    let newCond: any = { ...cond };
-
-    if ("value" in newCond) {
-      newCond.value = resolveCustomValue(
-        newCond.value,
-        user,
-        query,
-        tableMap,
-        default_table_name
+        default_table,
+        structure,
+        role,
+        type
       );
     }
 
-    if ("left_value" in newCond) {
-      newCond.left_value = resolveCustomValue(
-        newCond.left_value,
-        user,
-        query,
-        tableMap,
-        default_table_name
-      );
-    }
-
-    // ---- IN subquery (value.where) ----
-    if (
-      newCond.value &&
-      typeof newCond.value === "object" &&
-      "select" in newCond.value
-    ) {
-      const sub = { ...newCond.value };
-
-      if (sub.where) {
-        sub.where = injectDynamicValues(
-          sub.where,
-          user,
-          query,
-          tableMap,
-          default_table_name
-        ) as WhereCondition;
-      }
-
-      newCond.value = sub;
-    }
-
-    // ---- IN subquery (left_value.where) ----
-    if (
-      newCond.left_value &&
-      typeof newCond.left_value === "object" &&
-      "select" in newCond.left_value
-    ) {
-      const sub = { ...newCond.left_value };
-
-      if (sub.where) {
-        sub.where = injectDynamicValues(
-          sub.where,
-          user,
-          query,
-          tableMap,
-          default_table_name
-        ) as WhereCondition;
-      }
-
-      newCond.left_value = sub;
-    }
-
-    return newCond;
+    newCond.query = newQuery;
   }
 
-  return cond;
+  // ---- helper to validate $col ----
+  const validateColRef = (val: any) => {
+    if (typeof val === "string") {
+      const match = val.match(/^\$col\.(.+)$/);
+      if (match) {
+        const field = match[1];
+
+        const allowed = resolve_field(
+          field,
+          default_table,
+          structure,
+          type,
+          role,
+          tableMap
+        );
+
+        if (!allowed) {
+          throw Error(`Field ${field} not allowed in where condition`);
+        }
+      }
+    }
+  };
+
+  // ---- helper for subqueries ----
+  const handleSubquery = (val: any) => {
+    if (val && typeof val === "object" && "select" in val) {
+      const sub = { ...val };
+
+      if (sub.where) {
+        sub.where = validate_where_fields(
+          sub.where,
+          tableMap,
+          default_table,
+          structure,
+          role,
+          type
+        );
+      }
+
+      return sub;
+    }
+    return val;
+  };
+
+  // ---- VALUE ----
+  if ("value" in newCond) {
+    newCond.value = handleSubquery(newCond.value);
+    validateColRef(newCond.value);
+  }
+
+  // ---- LEFT VALUE ----
+  if ("left_value" in newCond) {
+    newCond.left_value = handleSubquery(newCond.left_value);
+    validateColRef(newCond.left_value);
+  }
+
+  // ---- FIELD ----
+  if ("field" in newCond && newCond.field) {
+    const allowed = resolve_field(
+      newCond.field,
+      default_table,
+      structure,
+      type,
+      role,
+      tableMap
+    );
+
+    if (!allowed) {
+      throw Error(`Field ${newCond.field} not allowed in where condition`);
+    }
+  }
+
+  return newCond;
 }
 
 // extract the map of the table

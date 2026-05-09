@@ -11,10 +11,13 @@ import {
   asc,
   not,
   notLike,
-  getTableName
+  getTableName,
+  notExists,
+  notInArray,
+  notBetween
 } from "drizzle-orm";
 import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Response, RolePermissions, TriggerStructure, BuildWhereOptions } from "./types.ts";
-import { alias_selected_fields, injectDynamicValues, is_op_type, resolve_fields, resolveCustomValue } from "./rbac";
+import { alias_selected_fields, is_op_type, resolve_fields, resolveCustomValue } from "./rbac";
 import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
@@ -151,6 +154,28 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     return exists(inner_query);
   }
 
+  if (cond && ('op' in cond || 'operator' in cond) && is_op_type(cond, "NOT EXISTS") && 'query' in cond) {
+    let subTable = null
+    let fields = null
+    let subWhere = null
+    const sub_query = cond.query
+    if(sub_query) {
+      subTable = tableMap[sub_query.from];
+      if (!subTable) throw new Error(`Table '${sub_query.from}' not found`);
+      fields = resolve_fields(structure, sub_query.select, 'GET', role, subTable, tableMap);
+      fields = alias_selected_fields(fields);
+      if(!fields) throw new Error(`Inner fields not found`);
+      subWhere = sub_query.where
+        ? await buildWhere(db, sub_query.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+        : undefined;
+    }
+    let inner_query = db.select(fields).from(subTable)
+    if(subWhere) {
+      inner_query = inner_query.where(subWhere)
+    }
+    return notExists(inner_query);
+  }
+
   // Determine left side
   let left: any;
   let right: any;
@@ -214,6 +239,28 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     return sql`false`
   }
 
+  if(is_op_type(cond, "NOT IN") && (left != null && left !=undefined)) {
+    if (right && typeof right === "object" && "select" in right) {
+      const subTable = tableMap[right.from];
+      if (!subTable) throw new Error(`Table '${right.from}' not found`);
+      let fields = resolve_fields(structure, right.select, 'GET', role, subTable, tableMap);
+      fields = alias_selected_fields(fields);
+      if(!fields) throw new Error(`Inner fields not found`);
+      const subWhere = right.where
+        ? await buildWhere(db, right.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+        : undefined;
+      let inner_query = db.select(fields).from(subTable)
+      if(subWhere) {
+        inner_query = inner_query.where(subWhere)
+      }
+      return notInArray(left, inner_query);
+    }
+    // Normal IN array
+    if (Array.isArray(right)) return notInArray(left, right);
+  }else if(is_op_type(cond, "NOT IN")) {
+    return sql`false`
+  }
+
   const operator = cond.operator ?? cond.op
 
   // Literal operators
@@ -248,6 +295,9 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       case "BETWEEN": {
         return between(left, start, end)
       }
+      case "NOT BETWEEN": {
+        return notBetween(left, start, end)
+      }
     }
   }
   throw new Error(`Unsupported operator: ${operator}`);
@@ -261,12 +311,6 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
   // Start with undefined
   let aclWhere: WhereCondition | null = null;
 
-  // Helper to inject if `where` exists
-  //function injectIfExists(obj: any) {
-  //  return obj && obj.where ? (injectDynamicValues(obj.where, user, query, tableMap, default_table_name) as WhereCondition) : undefined;
-  //}
-
-  // !NEED TO BE TESTED AND SEE IF IS USELESS INJECTDYNAMICVALUES
   function injectIfExists(obj: any) {
      return obj && obj.where ? (obj.where as WhereCondition) : undefined;
   }

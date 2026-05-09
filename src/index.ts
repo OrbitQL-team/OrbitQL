@@ -1,5 +1,5 @@
 import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions } from "./types.ts";
-import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes } from "./rbac.ts";
+import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
 
@@ -11,11 +11,13 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const tableStruct = structure[tableName];
   if (!tableStruct) throw new Error(`Table ${tableName} not found`);
 
-  const endpoint = tableStruct.endpoints.find((e:any) => e.type === query.type);
-  if (!endpoint) throw new Error(`${query.type} not allowed on ${tableName}`);
+  const query_type = query.type
+
+  const endpoint = tableStruct.endpoints.find((e:any) => e.type === query_type);
+  if (!endpoint) throw new Error(`${query_type} not allowed on ${tableName}`);
 
   if(!endpoint[role]) {
-    throw new Error(`Role '${role}' not allowed to perform ${query.type} on ${tableName}`);
+    throw new Error(`Role '${role}' not allowed to perform ${query_type} on ${tableName}`);
   }
   
   const rolePermissions = endpoint[role];
@@ -41,15 +43,16 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   const tableMap = extractTableMap(structure);
 
-  const table_name = getTableName(tableStruct.table)
+  const default_table = tableStruct.table
+  const table_name = getTableName(default_table)
 
   const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, table_name);
 
   let combinedWhere: WhereCondition | undefined;
-  let query_where = query.where
+  let query_where = query.where ? validate_where_fields(query.where, tableMap, table_name, structure, role, query_type) : query.where
   if (query_where && aclWhere) {
     combinedWhere = {
-      and: [query_where, aclWhere]
+      and: [aclWhere, query_where]
     };
   } else if (query_where) {
     combinedWhere = query_where;
@@ -58,7 +61,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   }
 
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
-    const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, tableStruct.table)
+    const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, default_table)
     if(!has_been_accepted) throw new Error("Not allowed")
   }
 
@@ -72,15 +75,15 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const return_before = rolePermissions.return_before ?? false
   const return_after = rolePermissions.return_after ?? false
 
-  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, tableStruct.table, table_name) : false
+  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, default_table, table_name) : false
 
   let user_select_data_fields: Record<string, any> = {};
 
   if(query.select) {
-    user_select_data_fields = resolve_fields(structure, query.select, query.type, role, query.table, tableMap);
+    user_select_data_fields = resolve_fields(structure, query.select, query_type, role, query.table, tableMap);
     user_select_data_fields = alias_selected_fields(user_select_data_fields);
   }else if(query.data) {
-    user_select_data_fields = resolve_data(structure, query.data, query.type, role, query.table, tableMap);
+    user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap);
     user_select_data_fields = stripPrefixes(user_select_data_fields);
   }
 
@@ -94,7 +97,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     throw new Error("No allowed fields");
   }
 
-  switch(query.type.toUpperCase()) {
+  switch(query_type.toUpperCase()) {
     case 'GET': {
       result = await get_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
       break;
