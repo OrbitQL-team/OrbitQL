@@ -16,8 +16,8 @@ import {
   notInArray,
   notBetween
 } from "drizzle-orm";
-import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Response, RolePermissions, TriggerStructure, BuildWhereOptions } from "./types.ts";
-import { alias_selected_fields, is_op_type, resolve_fields, resolveCustomValue } from "./rbac";
+import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Response, RolePermissions, TriggerStructure, BuildWhereOptions, AndCondition, OrCondition } from "./types.ts";
+import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolveCustomValue } from "./rbac";
 import build_query from "./index.ts";
 
 /*───────────────────────────────────────────────
@@ -63,42 +63,50 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
   }
 }
 
+async function and_condition(parts:any[]) { 
+  const is_one_boolean = parts.some(part => typeof part == "boolean")
+  if(is_one_boolean) {
+    const has_false = parts.some(part => typeof part === "boolean" && part === false)
+    if(has_false) return sql`false`
+    else {
+      parts = parts.filter(part => !(typeof part === "boolean" && part === true))
+      console.log('PARTS: ', parts)
+      if(parts.length == 1) return sql`${parts}`;
+    }
+  }
+  return and(...parts);
+}
+
+async function or_condition(parts: any[]) {
+  const is_one_boolean = parts.some(part => typeof part == "boolean")
+  if(is_one_boolean) {
+    const has_true = parts.some(part => typeof part === "boolean" && part === true)
+    if(has_true) return sql`true`
+  }
+  return or(...parts);
+} 
+
 
 /*───────────────────────────────────────────────
   BUILD WHERE
 ───────────────────────────────────────────────*/
-export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string): Promise<any> {
+export async function buildWhere(db: Database, cond: WhereCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string, custom_data?:Record<string, any>): Promise<any> {
   // Nested AND/OR
-  if ('and' in cond || 'or' in cond) {
-    let parts: SQLWrapper[] = [];
-
-    if ("and" in cond && cond.and) {
-        parts = await Promise.all(
-            cond.and.map((c) =>
-                buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
-            )
-        );
-    } else if ("or" in cond && cond.or) {
-        parts = await Promise.all(
-            cond.or.map((c) =>
-                buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
-            )
-        );
-    }
-    
-    const is_one_boolean = parts.some(part => typeof part == "boolean")
-    if(is_one_boolean) {
-      const has_true = parts.some(part => typeof part === "boolean" && part === true)
-      const has_false = parts.some(part => typeof part === "boolean" && part === false)
-      if('or' in cond && cond.or && has_true) return sql`true`
-      else if('and' in cond && cond.and && has_false) return sql`false`
-      else if('and' in cond && cond.and && has_true) {
-        parts = parts.filter(part => !(typeof part === "boolean" && part === true))
-        console.log('PARTS: ', parts)
-        if(parts.length == 1) return sql`${parts}`;
-      }
-    }
-    return 'and' in cond ? and(...parts) : or(...parts);
+  if ("and" in cond && cond.and) {
+    let parts = await Promise.all(
+      cond.and.map((c) =>
+        buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
+      )
+    );
+    return and_condition(parts)
+  }
+  else if ("or" in cond && cond.or) {
+    let parts = await Promise.all(
+      cond.or.map((c) =>
+        buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
+      )
+    );
+    return or_condition(parts)
   }
   else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
     let condition:any = sql``
@@ -183,8 +191,18 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
   let start: any
   let end: any
 
+  if(!custom_data && !('if' in cond ) && requests_data(cond) && query.data && Array.isArray(query.data)) {
+    //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
+    let parts = await Promise.all(
+      query.data.map((custom_data) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, custom_data)
+      )
+    );
+    return and_condition(parts)
+  }
+
   if ("left_value" in cond) {
-    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name);
+    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data);
   } else if ("field" in cond && cond.field) {
     let tbl, col;
     if(cond.field.includes(".")) {
@@ -197,19 +215,19 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
   } else if("value" in cond) {
-    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name);
+    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
   } else {
     console.log(cond)
     throw new Error("Condition must have 'field' or 'left_value' or 'value");
   }
 
   if ("value" in cond) {
-    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name);
+    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
   }
   
   if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
-    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name);
-    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name);
+    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data);
+    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data);
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
   } else if(is_op_type(cond, "BETWEEN") && !("start" in cond && "end" in cond)) {
@@ -394,6 +412,7 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   if(query.join) await buildJoin(db, builded_query, query.join, table_map, user, role, structure, query, from_table)
 
   builded_query.limit(1)
+  console.log(builded_query.toSQL().sql, builded_query.toSQL().params)
   const [rows]: any = await builded_query.execute()
 
   console.log(rows)
