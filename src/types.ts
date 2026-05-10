@@ -189,7 +189,7 @@ export type StructuredQuery = {
   select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
-  data?: Record<string, any>;
+  data?: Record<string, any> | Record<string, any>[];
   group_by?: string[];
   order_by?: string[];
   
@@ -213,6 +213,8 @@ export type SimpleCondition = OperatorAlias & {
   field?: string;
   left_value?: any;
   value?: any;
+  start?:any;
+  end?:any;
 };
 
 export type ExistsCondition =
@@ -255,7 +257,7 @@ export type NotExistsCondition =
       };
     };
 
-type NotCondition = {
+export type NotCondition = {
   not: WhereCondition | SubqueryCondition;
   and?: never;
   or?: never;
@@ -263,21 +265,21 @@ type NotCondition = {
 }
 
 // Nested AND/OR conditions
-type AndCondition = {
+export type AndCondition = {
   and: (WhereCondition | SubqueryCondition)[];
   not?: never;
   or?: never;
   if?: never;
 };
 
-type OrCondition = {
+export type OrCondition = {
   or: (WhereCondition | SubqueryCondition)[];
   not?: never;
   and?: never;
   if?: never;
 };
 
-type IfCondition = {
+export type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
     do?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;

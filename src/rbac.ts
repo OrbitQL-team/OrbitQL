@@ -161,7 +161,21 @@ export function resolve_data(
     role: string,
     default_table: string,
     tableMap: Record<string, Record<string, any>>
-) {
+): Record<string, any> | Array<Record<string, any>> {
+
+    if (Array.isArray(fields)) {
+        return fields.map((item) =>
+            resolve_data(
+                structure,
+                item,
+                type,
+                role,
+                default_table,
+                tableMap
+            )
+        );
+    }
+
     const allowed_fields: Record<string, any> = {};
 
     if (!fields || typeof fields !== "object") {
@@ -280,11 +294,9 @@ export function resolve_allowed_fields(
 ): boolean {
 
     const { result: isAllowed } = matchesPermission(field, allowed);
-    console.log(field, allowed)
     if (!isAllowed) return false;
 
     const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
-    console.log(isAllowed, isDisallowed)
     if (isDisallowed) {
         if(isAllowed && disallowed_matched_field == "*") return true
         else return false
@@ -325,6 +337,32 @@ export function is_undefined(v: any) {
     return v;
 }
 
+const DATA_REF_REGEX = /^\$data\.(.+)$/;
+
+function isDataRef(value: unknown): boolean {
+    return typeof value === "string" && DATA_REF_REGEX.test(value);
+}
+
+function checkObject(obj: Record<string, any>): boolean {
+    return Object.values(obj).some(isDataRef);
+}
+
+export function requests_data(
+    cond: SimpleCondition | ExistsCondition | NotExistsCondition
+): boolean {
+    return Object.entries(cond).some(([_, value]) => {
+        if (typeof value === "string") {
+            return isDataRef(value);
+        }
+
+        if (value && typeof value === "object") {
+            return checkObject(value);
+        }
+
+        return false;
+    });
+}
+
 // * Resolves custom values ex. $data - $user $col
 export function resolveCustomValue(
   value: any,
@@ -332,6 +370,7 @@ export function resolveCustomValue(
   query: StructuredQuery,
   tableMap: Record<string, any>,
   default_table_name: string,
+  custom_value?: Record<string, any>,
 ): any {
     if (!value) return value;
 
@@ -392,19 +431,61 @@ export function resolveCustomValue(
     // $data.X
     // ------------------------
     match = value.match(/^\$data\.(.+)$/);
-    if (match && query?.data) {
+
+    if (
+        match &&
+        custom_value
+    ) {
         const key = match[1];
 
         // direct match
-        if (key in query.data) return is_undefined(query.data[key]);
+        if (key in custom_value) {
+            return is_undefined(custom_value[key]);
+        }
+
+        // nested resolution
+        const parts = key.split(".");
+        let val: any = custom_value;
+
+        for (const part of parts) {
+            if (
+                val &&
+                typeof val === "object" &&
+                part in val
+            ) {
+                val = val[part];
+            } else {
+                return "";
+            }
+        }
+
+        return is_undefined(val);
+    }else if (
+        match &&
+        query?.data &&
+        !Array.isArray(query.data)
+    ) {
+        const key = match[1];
+
+        // direct match
+        if (key in query.data) {
+            return is_undefined(query.data[key]);
+        }
 
         // nested resolution
         const parts = key.split(".");
         let val: any = query.data;
 
         for (const part of parts) {
-            if (val && part in val) val = val[part];
-            else return '';
+            if (
+                val &&
+                typeof val === "object" &&
+                part in val
+            ) {
+                val = val[part];
+            } else {
+                return "";
+            }
         }
 
         return is_undefined(val);
@@ -421,8 +502,7 @@ export function is_op_type(condition:SimpleCondition | ExistsCondition | NotExis
     return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
 }
 
-// * inject dynamic values inside of where condition
-// ! probably not necessary?
+// * validate fields of where condition before accessing it to check if the user has access to that field 
 export function validate_where_fields(
   cond: WhereCondition | SubqueryCondition,
   tableMap: Record<string, any>,
