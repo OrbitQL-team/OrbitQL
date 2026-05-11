@@ -91,7 +91,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   let selected_data_fields: Record<string, any> = { ...user_select_data_fields };
 
-  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
 
   if (!Object.keys(selected_data_fields).length) {
     throw new Error("No allowed fields");
@@ -122,7 +122,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     }
   }
 
-  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
 
   return result
 }

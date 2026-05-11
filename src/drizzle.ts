@@ -652,7 +652,7 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
   };
 }
 
-export async function run_triggers(db: Database, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, triggers:TriggerStructure[], after:boolean = false) {
+export async function run_triggers(db: Database, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false) {
   const timing_filtered_triggers = triggers.filter((trigger)=>{
     if(after && trigger.type.toUpperCase() == 'AFTER') {
       return true
