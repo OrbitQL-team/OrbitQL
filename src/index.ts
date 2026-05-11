@@ -46,7 +46,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const default_table = tableStruct.table
   const table_name = getTableName(default_table)
 
-  const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, table_name);
+  const aclWhere = buildAclWhere(allowed, disallowed);
 
   let combinedWhere: WhereCondition | undefined;
   let query_where = query.where ? validate_where_fields(query.where, tableMap, table_name, structure, role, query_type) : query.where

@@ -282,8 +282,8 @@ export type OrCondition = {
 export type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
-    do?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;
-    else?: WhereCondition | SubqueryCondition | boolean | StructuredQuery;
+    do?: WhereCondition | SubqueryCondition | boolean | StructuredQuery | Function;
+    else?: WhereCondition | SubqueryCondition | boolean | StructuredQuery | Function;
   };
   not?: never;
   and?: never;
