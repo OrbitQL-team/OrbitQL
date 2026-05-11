@@ -114,6 +114,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     if("do" in cond.if) {
       if(when_condition) {
         let do_condition
+        if(typeof cond.if.do == 'function') throw Error('Function not allowed in where condition')
         if(typeof cond.if.do == 'object') {
           if(("type" in cond.if.do)) throw Error('Structured Query not allowed in where condition')
           else do_condition = await buildWhere(db, cond.if.do, tableMap, user, role, structure, query, default_table, default_table_name)
@@ -125,6 +126,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
       }
       else if("else" in cond.if) {
         let else_condition
+        if(typeof cond.if.else == 'function') throw Error('Function not allowed in where condition')
         if(typeof cond.if.else == 'object') {
           if(("type" in cond.if.else)) throw Error('Structured Query not allowed in where condition')
           else else_condition = await buildWhere(db, cond.if.else, tableMap, user, role, structure, query, default_table, default_table_name)
@@ -325,7 +327,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
 /*───────────────────────────────────────────────
   BUILD ACL WHERE
 ───────────────────────────────────────────────*/
-export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermission, user: any, query:StructuredQuery, tableMap: Record<string, any>, default_table_name: string): WhereCondition | null {
+export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermission): WhereCondition | null {
   // Start with undefined
   let aclWhere: WhereCondition | null = null;
 
@@ -650,7 +652,7 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
   };
 }
 
-export async function run_triggers(db: Database, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, triggers:TriggerStructure[], after:boolean = false) {
+export async function run_triggers(db: Database, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false) {
   const timing_filtered_triggers = triggers.filter((trigger)=>{
     if(after && trigger.type.toUpperCase() == 'AFTER') {
       return true
@@ -664,7 +666,9 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
       const condition = trigger.query.if
       const when_condition = await if_condition(db, condition.when, tableMap, user, role, structure, query, tableStruct.table)
       if(when_condition && condition.do) {
-        if(typeof condition.do == "object" && "type" in condition.do) {
+        if(typeof condition.do == "function" && "type" in condition.do) {
+          await condition.do();
+        }else if(typeof condition.do == "object" && "type" in condition.do) {
           await build_query(db, condition.do, user, role, structure, {
             disable_triggers: true,
             after: false,
@@ -672,7 +676,9 @@ export async function run_triggers(db: Database, options:BuildWhereOptions, quer
           })
         }
       }else if(!when_condition && condition.else) {
-        if(typeof condition.else == "object" && "type" in condition.else) {
+        if(typeof condition.else == "function" && "type" in condition.else) {
+          await condition.else();
+        }else if(typeof condition.else == "object" && "type" in condition.else) {
           await build_query(db, condition.else, user, role, structure, {
             disable_triggers: true,
             after: false,

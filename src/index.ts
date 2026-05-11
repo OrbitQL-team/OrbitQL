@@ -46,7 +46,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const default_table = tableStruct.table
   const table_name = getTableName(default_table)
 
-  const aclWhere = buildAclWhere(allowed, disallowed, user, query, tableMap, table_name);
+  const aclWhere = buildAclWhere(allowed, disallowed);
 
   let combinedWhere: WhereCondition | undefined;
   let query_where = query.where ? validate_where_fields(query.where, tableMap, table_name, structure, role, query_type) : query.where
@@ -91,7 +91,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   let selected_data_fields: Record<string, any> = { ...user_select_data_fields };
 
-  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
 
   if (!Object.keys(selected_data_fields).length) {
     throw new Error("No allowed fields");
@@ -122,7 +122,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
     }
   }
 
-  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, built_where, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
 
   return result
 }
