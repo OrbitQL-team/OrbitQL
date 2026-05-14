@@ -1,6 +1,10 @@
 import { count } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition } from "./types.ts";
 
+
+/* -------------------------------------------------------------------------- */
+/*                               RESOLVE FIELDS                               */
+/* -------------------------------------------------------------------------- */
 // * Alias selected fields from the user
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
   const aliased: Record<string, any> = {};
@@ -153,6 +157,118 @@ export function resolve_fields(
     return allowed_fields;
 }
 
+// * Checkes if the field is accepted inside of structure
+function matchesField(field: string, rule: string): boolean {
+    if (rule === "*") return true;
+    else if(rule === field) return true
+    return false
+}
+
+// * Combines allowed and not allowed permission to check if allowed
+function matchesPermission(
+    field: string,
+    permission?: FieldPermission
+): {result: boolean, matched_field: any} {
+    if (!permission) return { result: false, matched_field: null };
+
+    if(typeof permission == 'string') {
+        return { result: matchesField(field, permission), matched_field: field };
+    }
+
+    if (Array.isArray(permission)) {
+        for(let rule of permission) {
+            const result = matchesField(field, rule)
+            console.log('RESULT:', result)
+            if(result) return { result, matched_field: field }
+        }
+        return { result: false, matched_field: field };
+    }
+
+    if (typeof permission === "object") {
+        const rule = permission.field;
+
+        if (Array.isArray(rule)) {
+            if (rule.includes("*")) return { result: true, matched_field: "*" };
+            for(let r of rule) {
+                const result = matchesField(field, r)
+                console.log(result)
+                if(result) return { result, matched_field: field }
+            }
+            return { result: false, matched_field: field };
+        }
+
+        return { result: matchesField(field, rule), matched_field: field }
+    }
+
+    return { result: false, matched_field: field };
+}
+
+// * Resolve if field is allowed
+export function resolve_allowed_fields(
+    field: string,
+    allowed?: FieldPermission,
+    disallowed?: FieldPermission
+): boolean {
+
+    const { result: isAllowed } = matchesPermission(field, allowed);
+    if (!isAllowed) return false;
+
+    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
+    if (isDisallowed) {
+        if(isAllowed && disallowed_matched_field == "*") return true
+        else return false
+    }
+
+    return true;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                   REMOVE PREFIXES FROM RETURNED STRUCTURE                  */
+/* -------------------------------------------------------------------------- */
+export function stripPrefixes(input: any): any {
+    // * Handle arrays
+    if (Array.isArray(input)) {
+        return input.map(stripPrefixes);
+    }
+
+    // * Handle objects (but not null)
+    if (input !== null && typeof input === "object") {
+        const cleaned: Record<string, any> = {};
+
+        for (const [key, value] of Object.entries(input)) {
+            let cleanKey = key.includes(".") ? key.split(".").pop()! : key;
+            if (Object.prototype.hasOwnProperty.call(cleaned, cleanKey)) {
+                cleanKey = key.includes(".") ? key.replace(".", "_") : `${key}_${value}`;
+            }
+            cleaned[cleanKey] = stripPrefixes(value);
+        }
+
+        return cleaned;
+    }
+
+    // * Primitives (string, number, boolean, null, undefined)
+    return input;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                DATA RESOLVE                                */
+/* -------------------------------------------------------------------------- */
+// * Simply checks if value passed is undefined
+export function is_undefined(v: any) {
+    if (v === undefined) throw new Error(`Undefined value not supported`);
+    return v;
+}
+
+const DATA_REF_REGEX = /^\$data\.(.+)$/;
+
+function isDataRef(value: unknown): boolean {
+    return typeof value === "string" && DATA_REF_REGEX.test(value);
+}
+
+function checkObject(obj: Record<string, any>): boolean {
+    return Object.values(obj).some(isDataRef);
+}
+
 // * Resolve allowed passed data
 export function resolve_data(
     structure: Structure,
@@ -240,115 +356,8 @@ export function resolve_data(
     return allowed_fields;
 }
 
-// * Checkes if the field is accepted inside of structure
-function matchesField(field: string, rule: string): boolean {
-    if (rule === "*") return true;
-    else if(rule === field) return true
-    return false
-}
-
-// * Combines allowed and not allowed permission to check if allowed
-function matchesPermission(
-    field: string,
-    permission?: FieldPermission
-): {result: boolean, matched_field: any} {
-    if (!permission) return { result: false, matched_field: null };
-
-    if(typeof permission == 'string') {
-        return { result: matchesField(field, permission), matched_field: field };
-    }
-
-    if (Array.isArray(permission)) {
-        for(let rule of permission) {
-            const result = matchesField(field, rule)
-            console.log('RESULT:', result)
-            if(result) return { result, matched_field: field }
-        }
-        return { result: false, matched_field: field };
-    }
-
-    if (typeof permission === "object") {
-        const rule = permission.field;
-
-        if (Array.isArray(rule)) {
-            if (rule.includes("*")) return { result: true, matched_field: "*" };
-            for(let r of rule) {
-                const result = matchesField(field, r)
-                console.log(result)
-                if(result) return { result, matched_field: field }
-            }
-            return { result: false, matched_field: field };
-        }
-
-        return { result: matchesField(field, rule), matched_field: field }
-    }
-
-    return { result: false, matched_field: field };
-}
-
-// * Resolve if field is allowed
-export function resolve_allowed_fields(
-    field: string,
-    allowed?: FieldPermission,
-    disallowed?: FieldPermission
-): boolean {
-
-    const { result: isAllowed } = matchesPermission(field, allowed);
-    if (!isAllowed) return false;
-
-    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
-    if (isDisallowed) {
-        if(isAllowed && disallowed_matched_field == "*") return true
-        else return false
-    }
-
-    return true;
-}
-
-// * Remove prefixes
-export function stripPrefixes(input: any): any {
-    // * Handle arrays
-    if (Array.isArray(input)) {
-        return input.map(stripPrefixes);
-    }
-
-    // * Handle objects (but not null)
-    if (input !== null && typeof input === "object") {
-        const cleaned: Record<string, any> = {};
-
-        for (const [key, value] of Object.entries(input)) {
-            let cleanKey = key.includes(".") ? key.split(".").pop()! : key;
-            if (Object.prototype.hasOwnProperty.call(cleaned, cleanKey)) {
-                cleanKey = key.includes(".") ? key.replace(".", "_") : `${key}_${value}`;
-            }
-            cleaned[cleanKey] = stripPrefixes(value);
-        }
-
-        return cleaned;
-    }
-
-    // * Primitives (string, number, boolean, null, undefined)
-    return input;
-}
-
-// * Simply checks if value passed is undefined
-export function is_undefined(v: any) {
-    if (v === undefined) throw new Error(`Undefined value not supported`);
-    return v;
-}
-
-const DATA_REF_REGEX = /^\$data\.(.+)$/;
-
-function isDataRef(value: unknown): boolean {
-    return typeof value === "string" && DATA_REF_REGEX.test(value);
-}
-
-function checkObject(obj: Record<string, any>): boolean {
-    return Object.values(obj).some(isDataRef);
-}
-
 export function requests_data(
-    cond: SimpleCondition | ExistsCondition | NotExistsCondition
+    cond: SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition
 ): boolean {
     return Object.entries(cond).some(([_, value]) => {
         if (typeof value === "string") {
@@ -498,10 +507,31 @@ export function resolveCustomValue(
 }
 
 // * checks operator type
-export function is_op_type(condition:SimpleCondition | ExistsCondition | NotExistsCondition, text:string) {
-    return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
+type ConditionWithOperator<T extends string> =
+  | { operator: T; op?: never }
+  | { op: T; operator?: never }
+
+export function is_op_type<T extends string>(
+  condition:
+    | SimpleCondition
+    | ExistsCondition
+    | NotExistsCondition
+    | BetweenCondition
+    | NotBetweenCondition,
+  text: T
+): condition is Extract<
+  SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition,
+  ConditionWithOperator<T>
+> {
+  return (
+    condition.operator?.toUpperCase() === text.toUpperCase() ||
+    condition.op?.toUpperCase() === text.toUpperCase()
+  )
 }
 
+/* -------------------------------------------------------------------------- */
+/*                              WHERE VALIDATION                              */
+/* -------------------------------------------------------------------------- */
 // * validate fields of where condition before accessing it to check if the user has access to that field 
 export function validate_where_fields(
   cond: WhereCondition | SubqueryCondition,

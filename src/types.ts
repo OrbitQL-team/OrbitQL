@@ -1,3 +1,6 @@
+/* -------------------------------------------------------------------------- */
+/*                                   IMPORTS                                  */
+/* -------------------------------------------------------------------------- */
 import { GelDatabase } from "drizzle-orm/gel-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
@@ -71,7 +74,7 @@ export type Database =
   | BunSQLiteDatabase;
 
 /* -------------------------------------------------------------------------- */
-/*                               STRUCTURE                                    */
+/*                                  STRUCTURE                                 */
 /* -------------------------------------------------------------------------- */
 
 export type Structure = Record<string, TableStructure>;
@@ -120,7 +123,7 @@ export type Endpoint = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                                 ROLES                                      */
+/*                                 PERMISSIONS                                */
 /* -------------------------------------------------------------------------- */
 
 type AllowedAliases =
@@ -153,7 +156,7 @@ export type FieldPermission =
     };
 
 /* -------------------------------------------------------------------------- */
-/*                               OPERATORS                                    */
+/*                                  OPERATORS                                 */
 /* -------------------------------------------------------------------------- */
 
 export const SAFE_OPERATORS = [
@@ -171,7 +174,6 @@ export const SAFE_OPERATORS = [
   "IS NOT",
   "IS NULL",
   "IS NOT NULL",
-  "BETWEEN",
   "NOT BETWEEN",
   "IN",
   "NOT IN"
@@ -180,7 +182,7 @@ export const SAFE_OPERATORS = [
 export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 /* -------------------------------------------------------------------------- */
-/*                               CONDITIONS                                   */
+/*                              QUERY/CONDITIONS                              */
 /* -------------------------------------------------------------------------- */
 
 export type StructuredQuery = {
@@ -201,8 +203,8 @@ export type StructuredQuery = {
 
 export type Join = {
   table: keyof Structure;
-  type: "INNER" | "LEFT";       // RIGHT & FULL removed (not supported + unsafe)
-  on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
+  type: "INNER" | "LEFT";
+  on: Record<string, string> | WhereCondition;
 };
 
 type OperatorAlias =
@@ -216,6 +218,42 @@ export type SimpleCondition = OperatorAlias & {
   start?:any;
   end?:any;
 };
+
+export type BetweenCondition =
+  | {
+      operator: "BETWEEN";
+      op?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    }
+  | {
+      op: "BETWEEN";
+      operator?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    };
+
+export type NotBetweenCondition =
+  | {
+      operator: "BETWEEN";
+      op?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    }
+  | {
+      op: "BETWEEN";
+      operator?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    };
 
 export type ExistsCondition =
   | {
@@ -264,7 +302,6 @@ export type NotCondition = {
   if?: never;
 }
 
-// Nested AND/OR conditions
 export type AndCondition = {
   and: (WhereCondition | SubqueryCondition)[];
   not?: never;
@@ -293,7 +330,7 @@ export type IfCondition = {
 export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
-export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition;
+export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition;
 
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
@@ -308,7 +345,7 @@ export type SubqueryCondition = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                               PERMISSION PRESETS                           */
+/*                                   PRESETS                                  */
 /* -------------------------------------------------------------------------- */
 
 export const ALL: RolePermissions = { allowed: ["*"], disallowed: [] };
