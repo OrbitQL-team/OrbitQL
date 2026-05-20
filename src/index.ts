@@ -89,9 +89,6 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   /*                           ALLOWED FIELDS RESOLVER                          */
   /* -------------------------------------------------------------------------- */
 
-  const return_before = rolePermissions.return_before ?? false
-  const return_after = rolePermissions.return_after ?? false
-
   const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, default_table, table_name) : false
 
   let user_select_data_fields: Record<string, any> = {};
@@ -128,18 +125,15 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       break;
     }
     case 'PUT': {
-      const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
-      result = await put_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, built_where, limit, return_before, return_after)
+      result = await put_method(db, options, query, user, structure, role, tableStruct, selected_data_fields, built_where, limit)
       break;
     }
     case 'POST': {
-      const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
-      result = await post_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, selected_data_fields, return_after)
+      result = await post_method(db, options, query, user, structure, role, tableStruct, selected_data_fields)
       break;
     }
     case 'DELETE': {
-      const pre_post_select_fields = resolve_fields(structure, ["*"], "GET", role, query.table, tableMap)
-      result = await delete_method(db, options, query, user, structure, pre_post_select_fields, role, tableStruct, built_where, limit, return_before)
+      result = await delete_method(db, options, query, user, structure, role, tableStruct, built_where, limit)
       break;
     }
     default: {

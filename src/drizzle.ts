@@ -16,7 +16,7 @@ import {
   notInArray,
   notBetween
 } from "drizzle-orm";
-import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, Response, RolePermissions, TriggerStructure, BuildWhereOptions, AndCondition, OrCondition, IfCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
+import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, AndCondition, OrCondition, IfCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
 import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolveCustomValue } from "./rbac";
 import build_query from "./index.ts";
 
@@ -568,24 +568,11 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
   };
 }
 
-export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, return_before: boolean, return_after:boolean) {
+export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any) {
   if (!query.data) throw new Error("PUT requires data");
 
   return {
     execute: async () => {
-      const result:Response = {} as Response
-      
-      if(return_before) {
-        const beforeRows = db.select(pre_post_select_fields).from(tableStruct.table)
-        
-        if(built_where) {
-          beforeRows.where(built_where)
-        }
-
-        if(limit != null) beforeRows.limit(limit)
-
-        result.before = await beforeRows.execute();
-      }
 
       const update_query = db.update(tableStruct.table).set(selected_data_fields)
       
@@ -595,76 +582,32 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
 
       if(limit != null) update_query.limit(limit)
       
-      result.response = await update_query.execute();
-
-      if(return_after) {
-        const afterRows = db.select(pre_post_select_fields).from(tableStruct.table)
-      
-        if(built_where) {
-          afterRows.where(built_where)
-        }
-
-        if(limit != null) afterRows.limit(limit)
-        
-        result.after = await afterRows.execute();
-      }
+      let result = await update_query.execute();
 
       return await run_after(db, options, query, user, result, role, structure)
     }
   };
 }
 
-export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, return_after:boolean) {
+export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>) {
   if (!query.data) throw new Error("POST requires data");
 
   return {
     execute: async () => {
-      const result:Response = {} as Response
-      const response = await db
+      const post_query = await db
         .insert(tableStruct.table)
         .values(selected_data_fields)
-        .execute();
-
-      result.response = response
-
-      if(return_after) {
-        let insertedRows = null
-        if(response && response[0]?.insertId) {
-          insertedRows = await db
-          .select(pre_post_select_fields)
-          .from(tableStruct.table)
-          .orderBy(desc(tableStruct.table.id))
-          .where(eq(tableStruct.table.id, response[0]?.insertId!))
-          .limit(1)
-          .execute();
-        }
-        result.after = insertedRows
-      }
-
-      result.before = null
+        
+      let result = post_query.execute();
 
       return await run_after(db, options, query, user, result, role, structure)
     }
   };
 }
 
-export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, pre_post_select_fields: Record<string, any>, role:string, tableStruct:TableStructure, built_where:any, limit:any, return_before: boolean){
+export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, built_where:any, limit:any){
   return {
     execute: async () => {
-      const result:Response = {} as Response
-      if(return_before) {
-        const toDelete = db.select(pre_post_select_fields).from(tableStruct.table)
-      
-        if(built_where) {
-          toDelete.where(built_where);
-        }
-
-        if(limit != null) toDelete.limit(limit)
-
-        const toDeleteRows = await toDelete.execute();
-        result.before = toDeleteRows
-      }
-
       const delete_query = db.delete(tableStruct.table)
       
       if(built_where) {
@@ -673,9 +616,7 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
 
       if(limit != null) delete_query.limit(limit)
       
-      result.response = await delete_query.execute();
-      
-      result.after
+      let result = await delete_query.execute();
 
       return await run_after(db, options, query, user, result, role, structure)
     }

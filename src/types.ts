@@ -136,17 +136,9 @@ type DisallowedAliases =
 
 type Limit = { limit?: number };
 
-type ReturnBeforeStatus = { return_before?: boolean };
-type ReturnAfterStatus = { return_after?: boolean };
 type OrderBy = { order_by?: string[]; direction?: "asc" | "desc" };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus & OrderBy;
-
-export type Response = {
-  before: any,
-  response: any,
-  after:any
-}
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy;
 
 export type FieldPermission =
   | string | string[]
