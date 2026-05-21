@@ -17,7 +17,7 @@ import {
   notBetween
 } from "drizzle-orm";
 import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, AndCondition, OrCondition, IfCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
-import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolveCustomValue } from "./rbac";
+import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolve_group_by_fields, resolve_order_by_fields, resolveCustomValue, toArray } from "./rbac";
 import build_query from "./index.ts";
 
 /* -------------------------------------------------------------------------- */
@@ -508,52 +508,20 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
   if (built_where) q.where(built_where);
 
   if (query.group_by) {
-    q.groupBy(
-      ...query.group_by.map((f:string) => {
-        const [tbl, col] = f.includes(".") ? f.split(".") : [tableName, f];
-        return tableMap[tbl][col];
-      })
-    );
+    q.groupBy(...resolve_group_by_fields(structure, query.group_by, query.type, role, tableName, tableMap));
   }
 
   const orderByFields =
-    query.order_by ??
-    rolePermissions?.order_by ??
+    toArray(query.order_by) ??
+    toArray(rolePermissions?.order_by) ??
     [];
 
-  // Resolve default direction
-  const defaultDirection =
-    query.direction ??
-    rolePermissions?.direction ??
-    "ASC";
-
   if (orderByFields.length > 0) {
-    q.orderBy(
-      ...orderByFields.map((f: string) => {
-        // Allow "column DESC" syntax
-        const parts = f.trim().split(/\s+/);
-        const columnPart = parts[0];
-        const dir = (parts[1] ?? defaultDirection).toUpperCase();
-
-        // Resolve table + column
-        const [tbl, col] = columnPart.includes(".")
-          ? columnPart.split(".")
-          : [tableName, columnPart];
-
-        if (!tableMap[tbl]?.[col]) {
-          throw new Error(`Invalid order_by column: ${tbl}.${col}`);
-        }
-
-        return dir === "DESC"
-          ? desc(tableMap[tbl][col])
-          : asc(tableMap[tbl][col]);
-      })
-    );
+    q.orderBy(...resolve_order_by_fields(structure, orderByFields, query.type, role, tableName, tableMap));
   }
 
   if(limit != null) q.limit(limit)
 
-  console.log(q.toSQL().sql, q.toSQL().params)
   return {
     execute: async () => {
       const rows = await q.execute();
@@ -568,7 +536,7 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
   };
 }
 
-export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any) {
+export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, returning:RolePermissions) {
   if (!query.data) throw new Error("PUT requires data");
 
   return {
@@ -581,6 +549,14 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
       }
 
       if(limit != null) update_query.limit(limit)
+
+      if(returning) {
+        if (typeof update_query.returning === 'function') {
+          update_query.returning();
+        }else if (typeof update_query.output === 'function') {
+          update_query.output();
+        }
+      }
       
       let result = await update_query.execute();
 
@@ -589,23 +565,33 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
   };
 }
 
-export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>) {
+export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, returning:RolePermissions) {
   if (!query.data) throw new Error("POST requires data");
 
   return {
     execute: async () => {
-      const post_query = await db
+      const post_query = db
         .insert(tableStruct.table)
         .values(selected_data_fields)
+
+      if(returning) {
+        if (typeof post_query.returning === 'function') {
+          post_query.returning();
+        }else if (typeof post_query.$returningId === 'function') {
+          post_query.$returningId();
+        }else if (typeof post_query.output === 'function') {
+          post_query.output();
+        }
+      }
         
-      let result = post_query.execute();
+      let result = await post_query.execute();
 
       return await run_after(db, options, query, user, result, role, structure)
     }
   };
 }
 
-export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, built_where:any, limit:any){
+export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, built_where:any, limit:any, returning:RolePermissions){
   return {
     execute: async () => {
       const delete_query = db.delete(tableStruct.table)
@@ -615,6 +601,14 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
       }
 
       if(limit != null) delete_query.limit(limit)
+
+      if(returning) {
+        if (typeof delete_query.returning === 'function') {
+          delete_query.returning();
+        }else if (typeof delete_query.output === 'function') {
+          delete_query.output();
+        }
+      }
       
       let result = await delete_query.execute();
 

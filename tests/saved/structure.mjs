@@ -21,9 +21,8 @@ export default {
               "value": 1
             }
           },
-          "disallowed": "",
-          "order_by": ["name"],
-          "direction": "asc"
+          "disallowed": "name",
+          "limit": 10,
         },
       },
       {

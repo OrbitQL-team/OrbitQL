@@ -35,7 +35,8 @@ async function main() {
   if(test.type == 'custom') {
     //Create db connection
     do{
-      let db = await createConnection(select);
+      let db_select = await select()
+      let db = await createConnection(db_select);
 
       const user_type = await prompts(
         {
@@ -54,35 +55,43 @@ async function main() {
 
       await save_to_file(user_type.role, '../saved/user_role.mjs')
 
-      const { result: user, go_back_to_structure } = await buildObject('User body', '../saved/user.mjs', default_user);
-      if (go_back_to_structure) {
+      const { result: user, go_back_to_select } = await buildObject('User body', '../saved/user.mjs', default_user);
+      if (go_back_to_select) {
         back = true;
         continue;
       }
 
-    const isWin = process.platform === "win32";
+      const isWin = process.platform === "win32";
 
-    const env = {
-      ...process.env,
-      DB_HOST:db.db_address,
-      DB_USER:db.user_name,
-      DB_PWD:db.password,
-      DB_NAME:db.db_name,
-      USER_OBJ: JSON.stringify(user)
-    }
-    
-    const { result: query, go_back_to_user } = await navigate_object('Query Body', '../saved/query.mjs', default_query);
-      if (go_back_to_user) {
-        back = true;
-        continue;
-    }
+
+      console.log(db)
+      const env = {
+        ...process.env,
+        DB_HOST:db.db_address,
+        DB_USER:db.user_name,
+        DB_FAMILY: db_select.family,
+        DB_PWD:db.password,
+        DB_NAME:db.db_name,
+        USER_OBJ: JSON.stringify(user)
+      }
+      
+      const { result: query, go_back_to_user } = await navigate_object('Query Body', '../saved/query.mjs', default_query);
+        if (go_back_to_user) {
+          back = true;
+          continue;
+      }
+
+      const { result: structure, go_back_to_query } = await navigate_object('Policy Structure', '../saved/structure.mjs', default_structure);
+        if (go_back_to_query) {
+          back = true;
+          continue;
+      }
       // Run Vitest
       const child = spawn('npx', ['vitest', 'run'], {
         stdio: 'inherit',
         env: {
           ...process.env,
-          DB: db_select.db,
-          DB_FAMILY: db_select.family,
+          ...env,
           USER_OBJ: JSON.stringify(user),
           USER_ROLE: user_type.role,
           STRUCTURE_OBJ: JSON.stringify(structure),

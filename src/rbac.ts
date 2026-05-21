@@ -1,4 +1,5 @@
 import { count } from "drizzle-orm";
+import { asc, desc } from "drizzle-orm";
 import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition } from "./types.ts";
 
 
@@ -155,6 +156,251 @@ export function resolve_fields(
     }
 
     return allowed_fields;
+}
+
+export function resolve_group_by_fields(
+  structure: Structure,
+  fields: any,
+  type: string,
+  role: string,
+  default_table: string,
+  tableMap: Record<string, Record<string, any>>
+) {
+  const result: any[] = [];
+
+  if (!fields) return result;
+
+  const list = Array.isArray(fields)
+    ? fields
+    : typeof fields === "string"
+      ? [fields]
+      : [];
+
+  function resolve(entry: string) {
+    if (typeof entry !== "string") return;
+
+    let raw = entry.trim();
+
+    if (raw === "*") {
+      throw new Error("'*' not allowed in group_by");
+    }
+
+    if (raw.startsWith("$count")) {
+      throw new Error("$count not allowed in group_by");
+    }
+
+    // -----------------------------
+    // resolve table/field
+    // -----------------------------
+    let table: string;
+    let field: string;
+
+    if (raw.includes(".")) {
+      [table, field] = raw.split(".");
+    } else {
+      table = default_table;
+      field = raw;
+    }
+
+    const tableStruct = structure[table];
+    if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+
+    const endpoint = tableStruct.endpoints.find(e => e.type === type);
+    if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
+
+    const rolePermissions = endpoint[role];
+    if (!rolePermissions || typeof rolePermissions !== "object") return;
+
+    const allowed =
+      "allowed" in rolePermissions
+        ? rolePermissions.allowed
+        : rolePermissions.allow ?? [];
+
+    const disallowed =
+      "disallowed" in rolePermissions
+        ? rolePermissions.disallowed ?? []
+        : rolePermissions.deny ?? [];
+
+    // -----------------------------
+    // permission check
+    // -----------------------------
+    if (!resolve_allowed_fields(field, allowed, disallowed)) {
+      return;
+    }
+
+    // -----------------------------
+    // existence check
+    // -----------------------------
+    const column = tableMap[table]?.[field];
+    if (!column) {
+      throw new Error(`Invalid group_by column: ${table}.${field}`);
+    }
+
+    result.push(column);
+  }
+
+  for (const f of list) resolve(f);
+
+  return result;
+}
+
+export function resolve_order_by_fields(
+    structure: Structure,
+    fields: any,
+    type: string,
+    role: string,
+    default_table: string,
+    tableMap: Record<string, Record<string, any>>
+) {
+    const resolved_fields: any[] = [];
+
+    if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) {
+        return resolved_fields;
+    }
+
+    const keys = Array.isArray(fields) ? fields : [fields];
+
+    function resolve_field(entry: string) {
+        if (typeof entry !== "string") return;
+
+        let direction: "ASC" | "DESC" = "ASC";
+        let raw = entry.trim();
+
+        // -----------------------------------
+        // Parse direction prefix
+        // -----------------------------------
+
+        if (raw.startsWith("$desc.")) {
+            direction = "DESC";
+            raw = raw.slice(6);
+        } else if (raw.startsWith("$asc.")) {
+            direction = "ASC";
+            raw = raw.slice(5);
+        }
+
+        // -----------------------------------
+        // Remove unsupported syntax
+        // -----------------------------------
+
+        if (raw === "*") {
+            throw new Error(`'*' is not allowed in order_by`);
+        }
+
+        if (raw.startsWith("$count")) {
+            throw new Error(`'$count' is not allowed in order_by`);
+        }
+
+        // -----------------------------------
+        // Resolve table + field
+        // -----------------------------------
+
+        let table: string;
+        let field: string;
+
+        if (raw.includes(".")) {
+            [table, field] = raw.split(".");
+        } else {
+            table = default_table;
+            field = raw;
+        }
+
+        // -----------------------------------
+        // Validate table
+        // -----------------------------------
+
+        const tableStruct = structure[table];
+
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
+
+        // -----------------------------------
+        // Validate endpoint
+        // -----------------------------------
+
+        const endpoint = tableStruct.endpoints.find(
+            (e) => e.type === type
+        );
+
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
+        }
+
+        // -----------------------------------
+        // Validate role permissions
+        // -----------------------------------
+
+        const rolePermissions = endpoint[role];
+
+        if (
+            typeof rolePermissions !== "object" ||
+            !rolePermissions ||
+            Array.isArray(rolePermissions)
+        ) {
+            return;
+        }
+
+        const allowed =
+            "allowed" in rolePermissions
+                ? rolePermissions.allowed
+                : "allow" in rolePermissions
+                ? rolePermissions.allow
+                : [];
+
+        const disallowed =
+            "disallowed" in rolePermissions
+                ? rolePermissions.disallowed ?? []
+                : "deny" in rolePermissions
+                ? rolePermissions.deny ?? []
+                : [];
+
+        // -----------------------------------
+        // Validate field permissions
+        // -----------------------------------
+
+        if (
+            !resolve_allowed_fields(
+                field,
+                allowed,
+                disallowed
+            )
+        ) {
+            return;
+        }
+
+        // -----------------------------------
+        // Validate field existence
+        // -----------------------------------
+
+        if (!(field in tableMap[table])) {
+            throw new Error(
+                `Field '${field}' does not exist on table '${table}'`
+            );
+        }
+
+        const field_reference = tableMap[table][field];
+
+        // -----------------------------------
+        // Build drizzle order expression
+        // -----------------------------------
+
+        resolved_fields.push(
+            direction === "DESC"
+                ? desc(field_reference)
+                : asc(field_reference)
+        );
+    }
+
+    for (const entry of keys) {
+        resolve_field(entry);
+    }
+
+    return resolved_fields;
+}
+
+export function toArray<T>(v: T | T[] | null | undefined): T[] {
+  if (!v) return [];
+  return Array.isArray(v) ? v : [v];
 }
 
 // * Checkes if the field is accepted inside of structure
