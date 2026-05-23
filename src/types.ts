@@ -114,6 +114,7 @@ export type Endpoint = {
   // Explicit properties
   type: EndpointType;
   triggers?: TriggerStructure[];
+
   
   // Dynamic role properties
   [role: string]: 
@@ -136,9 +137,21 @@ type DisallowedAliases =
 
 type Limit = { limit?: number };
 
-type OrderBy = { order_by?: string[]; direction?: "asc" | "desc" };
+type OrderBy = { order_by?: string[] | string };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy;
+export type Returning = {
+  returning?: AllowedAliasesReturning & DisallowedAliasesReturning & boolean;
+}
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy & Returning;
+
+export type AllowedAliasesReturning =
+  | { allowed: string | string[]; allow?: never }
+  | { allow: string | string[]; allowed?: never };
+
+export type DisallowedAliasesReturning =
+  | { disallowed?: string | string[]; deny?: never }
+  | { deny?: string | string[]; disallowed?: never };
 
 export type FieldPermission =
   | string | string[]
@@ -184,8 +197,9 @@ export type StructuredQuery = {
   join?: Join[];
   where?: WhereCondition;
   data?: Record<string, any> | Record<string, any>[];
-  group_by?: string[];
-  order_by?: string[];
+  group_by?: string[] | string;
+  order_by?: string[] | string;
+  returning?: string[] | string;
   
   /* Queries executed after this one */
   after?: StructuredQuery[];

@@ -125,15 +125,15 @@ export default async function build_query(db: Database, query: StructuredQuery, 
       break;
     }
     case 'PUT': {
-      result = await put_method(db, options, query, user, structure, role, tableStruct, selected_data_fields, built_where, limit, rolePermissions.returning)
+      result = await put_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
       break;
     }
     case 'POST': {
-      result = await post_method(db, options, query, user, structure, role, tableStruct, selected_data_fields, rolePermissions.returning)
+      result = await post_method(db, options, query, user, structure, role, tableStruct, tableMap, selected_data_fields, tableName)
       break;
     }
     case 'DELETE': {
-      result = await delete_method(db, options, query, user, structure, role, tableStruct, built_where, limit, rolePermissions.returning)
+      result = await delete_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
       break;
     }
     default: {

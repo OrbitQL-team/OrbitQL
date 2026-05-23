@@ -82,40 +82,8 @@ export default {
             }
           },
           "disallowed": "",
-          "return_after": 1
+          "returning": true
         },
-        "triggers": [
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "name",
-                "when": {
-                  "field": "name",
-                  "op": "=",
-                  "value": "Daniele"
-                },
-                "value": "wela"
-              }
-            }
-          },
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "surname",
-                "when": {
-                  "field": "surname",
-                  "op": "=",
-                  "value": "Zucchelli"
-                },
-                "value": "wela"
-              }
-            }
-          }
-        ]
       },
       {
         "type": "POST",
@@ -125,7 +93,6 @@ export default {
         },
         "admin": {
           "allowed": "*",
-          "return_after": 1
         },
         "triggers": [
           {

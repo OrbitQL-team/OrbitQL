@@ -6,9 +6,6 @@ import {
   isNotNull,
   exists,
   between,
-  type SQLWrapper,
-  desc,
-  asc,
   not,
   notLike,
   getTableName,
@@ -16,8 +13,8 @@ import {
   notInArray,
   notBetween
 } from "drizzle-orm";
-import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, AndCondition, OrCondition, IfCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
-import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolve_group_by_fields, resolve_order_by_fields, resolveCustomValue, toArray } from "./rbac";
+import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, IfCondition, ExistsCondition, NotExistsCondition, Returning } from "./types.ts";
+import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolve_group_by_fields, resolve_order_by_fields, resolve_returning_fields, resolveCustomValue, toArray } from "./rbac";
 import build_query from "./index.ts";
 
 /* -------------------------------------------------------------------------- */
@@ -536,7 +533,7 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
   };
 }
 
-export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, built_where:any, limit:any, returning:RolePermissions) {
+export async function put_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
   if (!query.data) throw new Error("PUT requires data");
 
   return {
@@ -548,13 +545,24 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
         update_query.where(built_where)
       }
 
+      const orderByFields =
+        toArray(query.order_by) ??
+        toArray(rolePermissions?.order_by) ??
+        [];
+
+      if (orderByFields.length > 0) {
+        update_query.orderBy(...resolve_order_by_fields(structure, orderByFields, query.type, role, tableName, tableMap));
+      }
+
       if(limit != null) update_query.limit(limit)
 
-      if(returning) {
+      if(query.returning) {
+        let fields = resolve_returning_fields(structure, query.returning, "PUT", role, tableName, tableMap)
+        fields = alias_selected_fields(fields)
         if (typeof update_query.returning === 'function') {
-          update_query.returning();
+          update_query.returning(fields);
         }else if (typeof update_query.output === 'function') {
-          update_query.output();
+          update_query.output(fields);
         }
       }
       
@@ -565,7 +573,7 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
   };
 }
 
-export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, selected_data_fields: Record<string, any>, returning:RolePermissions) {
+export async function post_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string) {
   if (!query.data) throw new Error("POST requires data");
 
   return {
@@ -574,13 +582,15 @@ export async function post_method(db: Database, options:BuildWhereOptions, query
         .insert(tableStruct.table)
         .values(selected_data_fields)
 
-      if(returning) {
+      if(query.returning) {
+        let fields = resolve_returning_fields(structure, query.returning, "POST", role, tableName, tableMap)
+        fields = alias_selected_fields(fields)
         if (typeof post_query.returning === 'function') {
-          post_query.returning();
+          post_query.returning(fields);
         }else if (typeof post_query.$returningId === 'function') {
-          post_query.$returningId();
+          post_query.$returningId(fields);
         }else if (typeof post_query.output === 'function') {
-          post_query.output();
+          post_query.output(fields);
         }
       }
         
@@ -591,7 +601,7 @@ export async function post_method(db: Database, options:BuildWhereOptions, query
   };
 }
 
-export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, built_where:any, limit:any, returning:RolePermissions){
+export async function delete_method(db: Database, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, built_where:any, tableName:string, limit:any){
   return {
     execute: async () => {
       const delete_query = db.delete(tableStruct.table)
@@ -600,13 +610,24 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
         delete_query.where(built_where);
       }
 
+      const orderByFields =
+        toArray(query.order_by) ??
+        toArray(rolePermissions?.order_by) ??
+        [];
+
+      if (orderByFields.length > 0) {
+        delete_query.orderBy(...resolve_order_by_fields(structure, orderByFields, query.type, role, tableName, tableMap));
+      }
+
       if(limit != null) delete_query.limit(limit)
 
-      if(returning) {
+      if(query.returning) {
+        let fields = resolve_returning_fields(structure, query.returning, "DELETE", role, tableName, tableMap)
+        fields = alias_selected_fields(fields)
         if (typeof delete_query.returning === 'function') {
-          delete_query.returning();
+          delete_query.returning(fields);
         }else if (typeof delete_query.output === 'function') {
-          delete_query.output();
+          delete_query.output(fields);
         }
       }
       

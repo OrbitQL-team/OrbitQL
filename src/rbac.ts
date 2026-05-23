@@ -1,6 +1,6 @@
 import { count } from "drizzle-orm";
 import { asc, desc } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.ts";
 
 
 /* -------------------------------------------------------------------------- */
@@ -68,94 +68,198 @@ function resolve_field(entry:string, default_table:string, structure: Structure,
 // * Resolve allowed fields
 export function resolve_fields(
     structure: Structure,
-    fields: any,
+    fields: string | string[],
     type: string,
     role: string,
-    default_table: string,
+    defaultTable: string,
     tableMap: Record<string, Record<string, any>>
 ) {
-    const allowed_fields: Record<string, any> = {};
-    if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) return allowed_fields;
+    const allowedFields: Record<string, any> = {};
 
-    const keys = Array.isArray(fields) ? fields : fields;
+    if (!fields) return allowedFields;
 
-    function resolve_field(entry:string) {
-        let table: string;
-        let field: string;
+    const entries = Array.isArray(fields) ? fields : [fields];
 
-        console.log('ENTRY: ',entry)
-        const isCount = entry.startsWith("$count.");
-        const plain_entry = isCount ? entry.slice(7) : entry;
-        console.log('IS COUNT: ', isCount)
+    for (const rawEntry of entries) {
+        const isCount = rawEntry.startsWith("$count.");
+        const entry = isCount ? rawEntry.slice(7) : rawEntry;
 
-        if (plain_entry.includes(".")) [table, field] = plain_entry.split(".");
-        else {
-            table = default_table;
-            field = plain_entry;
-        }
+        const [table, field] = entry.includes(".")
+            ? entry.split(".")
+            : [defaultTable, entry];
 
         const tableStruct = structure[table];
-        if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
 
         const endpoint = tableStruct.endpoints.find(e => e.type === type);
-        if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
-
-        const rolePermissions = endpoint[role];
-        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
-            return;
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
         }
 
-        const allowed =
-            'allowed' in rolePermissions
-                ? rolePermissions.allowed
-                : 'allow' in rolePermissions
-                ? rolePermissions.allow
-                : [];
+        const permissions = endpoint[role];
 
-        const disallowed =
-            'disallowed' in rolePermissions
-                ? rolePermissions.disallowed ?? []
-                : 'deny' in rolePermissions
-                ? rolePermissions.deny ?? []
-                : [];
-    
-        if(field == "*") {
-            for (const current_field of Object.keys(tableMap[table])) {
-                if (!resolve_allowed_fields(current_field, allowed, disallowed)) {
-                    console.log("TABLE: ", table)
-                    console.log("REMOVED: ",current_field)
-                    continue
-                };
-                const field_reference = tableMap[table][current_field]
-                console.log('current field: ', current_field)
-                if(isCount) {
-                    allowed_fields[`${table}.${current_field}`] = count(field_reference)
-                }else allowed_fields[`${table}.${current_field}`] = field_reference;
+        if (
+            !permissions ||
+            typeof permissions !== "object" ||
+            Array.isArray(permissions)
+        ) {
+            continue;
+        }
+
+        const allowed = permissions.allowed ?? permissions.allow ?? [];
+        const disallowed = permissions.disallowed ?? permissions.deny ?? [];
+
+        const tableFields = tableMap[table];
+
+        const addField = (fieldName: string) => {
+            if (!resolve_allowed_fields(fieldName, allowed, disallowed)) {
+                return;
             }
-        }else {
-            if (!resolve_allowed_fields(field, allowed, disallowed)) {
-                console.log("TABLE: ", table)
-                console.log("REMOVED: ",field)
-                return
+
+            const fieldRef = tableFields[fieldName];
+
+            if (fieldRef === undefined) {
+                throw new Error(
+                    `Field '${fieldName}' does not exist on table '${table}'`
+                );
+            }
+
+            allowedFields[`${table}.${fieldName}`] = isCount
+                ? count(fieldRef)
+                : fieldRef;
+        };
+
+        if (field === "*") {
+            for (const fieldName in tableFields) {
+                addField(fieldName);
+            }
+        } else {
+            addField(field);
+        }
+    }
+
+    return allowedFields;
+}
+
+export function resolve_returning_fields(
+    structure: Structure,
+    fields: string | string[],
+    type: string,
+    role: string,
+    defaultTable: string,
+    tableMap: Record<string, Record<string, any>>
+) {
+    const allowedFields: Record<string, any> = {};
+
+    if (!fields) return allowedFields;
+
+    const entries = Array.isArray(fields) ? fields : [fields];
+
+    for (const rawEntry of entries) {
+        // hard disable count
+        if (rawEntry.startsWith("$count.")) {
+            throw new Error("$count fields are disabled in returning");
+        }
+
+        const entry = rawEntry;
+
+        const [table, field] = entry.includes(".")
+            ? entry.split(".")
+            : [defaultTable, entry];
+
+        const tableStruct = structure[table];
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
+
+        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
+        }
+
+        const permissions = endpoint[role];
+
+        if (
+            !permissions ||
+            typeof permissions !== "object" ||
+            Array.isArray(permissions)
+        ) {
+            continue;
+        }
+
+        const returning = permissions.returning;
+
+        const tableFields = tableMap[table];
+
+        if (!tableFields) {
+            throw new Error(`Unknown table '${table}' in tableMap`);
+        }
+
+        // ----------------------------
+        // BOOLEAN MODE
+        // ----------------------------
+        if (typeof returning === "boolean") {
+            if (!returning) continue;
+
+            const addField = (fieldName: string) => {
+                const fieldRef = tableFields[fieldName];
+
+                if (fieldRef === undefined) {
+                    throw new Error(
+                        `Field '${fieldName}' does not exist on table '${table}'`
+                    );
+                }
+
+                allowedFields[`${table}.${fieldName}`] = fieldRef;
             };
-            if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
-            const field_reference = tableMap[table][field]
-            if(isCount) {
-                allowed_fields[`${table}.${field}`] = count(field_reference)
-            }else allowed_fields[`${table}.${field}`] = field_reference;
+
+            if (field === "*") {
+                for (const fieldName in tableFields) {
+                    addField(fieldName);
+                }
+            } else {
+                addField(field);
+            }
+
+            continue;
+        }
+
+        // ----------------------------
+        // OBJECT MODE
+        // ----------------------------
+        const allowed = returning?.allowed ?? returning?.allow ?? [];
+        const disallowed = returning?.disallowed ?? returning?.deny ?? [];
+
+        const addField = (fieldName: string) => {
+            if (
+                !resolve_allowed_fields(fieldName, allowed, disallowed)
+            ) {
+                return;
+            }
+
+            const fieldRef = tableFields[fieldName];
+
+            if (fieldRef === undefined) {
+                throw new Error(
+                    `Field '${fieldName}' does not exist on table '${table}'`
+                );
+            }
+
+            allowedFields[`${table}.${fieldName}`] = fieldRef;
+        };
+
+        if (field === "*") {
+            for (const fieldName in tableFields) {
+                addField(fieldName);
+            }
+        } else {
+            addField(field);
         }
     }
 
-    if(typeof keys == 'string') {
-        resolve_field(keys)
-    }
-    if(Array.isArray(keys)) {
-        for (const entry of keys) {
-            resolve_field(entry)
-        }
-    }
-
-    return allowed_fields;
+    return allowedFields;
 }
 
 export function resolve_group_by_fields(
