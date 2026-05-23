@@ -559,6 +559,9 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
       if(query.returning) {
         let fields = resolve_returning_fields(structure, query.returning, "PUT", role, tableName, tableMap)
         fields = alias_selected_fields(fields)
+        if (Object.keys(fields).length === 0) {
+          throw new Error("No valid returning fields allowed");
+        }
         if (typeof update_query.returning === 'function') {
           update_query.returning(fields);
         }else if (typeof update_query.output === 'function') {
@@ -585,6 +588,9 @@ export async function post_method(db: Database, options:BuildWhereOptions, query
       if(query.returning) {
         let fields = resolve_returning_fields(structure, query.returning, "POST", role, tableName, tableMap)
         fields = alias_selected_fields(fields)
+        if (Object.keys(fields).length === 0) {
+          throw new Error("No valid returning fields allowed");
+        }
         if (typeof post_query.returning === 'function') {
           post_query.returning(fields);
         }else if (typeof post_query.$returningId === 'function') {
@@ -624,6 +630,9 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
       if(query.returning) {
         let fields = resolve_returning_fields(structure, query.returning, "DELETE", role, tableName, tableMap)
         fields = alias_selected_fields(fields)
+        if (Object.keys(fields).length === 0) {
+          throw new Error("No valid returning fields allowed");
+        }
         if (typeof delete_query.returning === 'function') {
           delete_query.returning(fields);
         }else if (typeof delete_query.output === 'function') {

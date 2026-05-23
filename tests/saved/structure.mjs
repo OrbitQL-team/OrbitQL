@@ -93,6 +93,7 @@ export default {
         },
         "admin": {
           "allowed": "*",
+          "returning": true
         },
         "triggers": [
           {
