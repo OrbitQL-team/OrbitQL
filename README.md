@@ -279,6 +279,7 @@ Polaris will evolve into a **SaaS platform** with:
 * API integration tooling
 * Authorization visualization
 * Query and rule debugging tools
+* Real time policy editing without restart need
 
 **Subscription model:**
 
