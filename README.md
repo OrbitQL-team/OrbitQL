@@ -185,6 +185,9 @@ Handler steps:
 5. Generates final SQL query
 6. Executes safely
 
+Flowchart:
+![Progress](./assets/Chart.svg)
+
 ---
 
 ## 🚀 Why Polaris Exists
