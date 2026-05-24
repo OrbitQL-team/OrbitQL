@@ -186,7 +186,7 @@ Handler steps:
 6. Executes safely
 
 Flowchart:
-![Progress](./assets/Chart.svg)
+![FlowChart](./assets/Chart.svg)
 
 ---
 
@@ -306,4 +306,4 @@ Your input will help shape Polaris’s future.
 
 ## 📄 License
 
-[License](https://github.com/Zucchy00/Cerberus/blob/main/LICENSE)
+MIT: [License](./LICENSE)
