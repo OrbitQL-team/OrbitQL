@@ -1,3 +1,6 @@
+/* -------------------------------------------------------------------------- */
+/*                                   IMPORTS                                  */
+/* -------------------------------------------------------------------------- */
 import { GelDatabase } from "drizzle-orm/gel-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
@@ -71,7 +74,7 @@ export type Database =
   | BunSQLiteDatabase;
 
 /* -------------------------------------------------------------------------- */
-/*                               STRUCTURE                                    */
+/*                                  STRUCTURE                                 */
 /* -------------------------------------------------------------------------- */
 
 export type Structure = Record<string, TableStructure>;
@@ -111,6 +114,7 @@ export type Endpoint = {
   // Explicit properties
   type: EndpointType;
   triggers?: TriggerStructure[];
+
   
   // Dynamic role properties
   [role: string]: 
@@ -120,7 +124,7 @@ export type Endpoint = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                                 ROLES                                      */
+/*                                 PERMISSIONS                                */
 /* -------------------------------------------------------------------------- */
 
 type AllowedAliases =
@@ -133,17 +137,21 @@ type DisallowedAliases =
 
 type Limit = { limit?: number };
 
-type ReturnBeforeStatus = { return_before?: boolean };
-type ReturnAfterStatus = { return_after?: boolean };
-type OrderBy = { order_by?: string[]; direction?: "asc" | "desc" };
+type OrderBy = { order_by?: string[] | string };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus & OrderBy;
-
-export type Response = {
-  before: any,
-  response: any,
-  after:any
+export type Returning = {
+  returning?: AllowedAliasesReturning & DisallowedAliasesReturning & boolean;
 }
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy & Returning;
+
+export type AllowedAliasesReturning =
+  | { allowed: string | string[]; allow?: never }
+  | { allow: string | string[]; allowed?: never };
+
+export type DisallowedAliasesReturning =
+  | { disallowed?: string | string[]; deny?: never }
+  | { deny?: string | string[]; disallowed?: never };
 
 export type FieldPermission =
   | string | string[]
@@ -153,7 +161,7 @@ export type FieldPermission =
     };
 
 /* -------------------------------------------------------------------------- */
-/*                               OPERATORS                                    */
+/*                                  OPERATORS                                 */
 /* -------------------------------------------------------------------------- */
 
 export const SAFE_OPERATORS = [
@@ -171,7 +179,6 @@ export const SAFE_OPERATORS = [
   "IS NOT",
   "IS NULL",
   "IS NOT NULL",
-  "BETWEEN",
   "NOT BETWEEN",
   "IN",
   "NOT IN"
@@ -180,7 +187,7 @@ export const SAFE_OPERATORS = [
 export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 /* -------------------------------------------------------------------------- */
-/*                               CONDITIONS                                   */
+/*                              QUERY/CONDITIONS                              */
 /* -------------------------------------------------------------------------- */
 
 export type StructuredQuery = {
@@ -190,8 +197,9 @@ export type StructuredQuery = {
   join?: Join[];
   where?: WhereCondition;
   data?: Record<string, any> | Record<string, any>[];
-  group_by?: string[];
-  order_by?: string[];
+  group_by?: string[] | string;
+  order_by?: string[] | string;
+  returning?: string[] | string;
   
   /* Queries executed after this one */
   after?: StructuredQuery[];
@@ -201,8 +209,8 @@ export type StructuredQuery = {
 
 export type Join = {
   table: keyof Structure;
-  type: "INNER" | "LEFT";       // RIGHT & FULL removed (not supported + unsafe)
-  on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
+  type: "INNER" | "LEFT";
+  on: Record<string, string> | WhereCondition;
 };
 
 type OperatorAlias =
@@ -216,6 +224,42 @@ export type SimpleCondition = OperatorAlias & {
   start?:any;
   end?:any;
 };
+
+export type BetweenCondition =
+  | {
+      operator: "BETWEEN";
+      op?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    }
+  | {
+      op: "BETWEEN";
+      operator?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    };
+
+export type NotBetweenCondition =
+  | {
+      operator: "BETWEEN";
+      op?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    }
+  | {
+      op: "BETWEEN";
+      operator?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    };
 
 export type ExistsCondition =
   | {
@@ -264,7 +308,6 @@ export type NotCondition = {
   if?: never;
 }
 
-// Nested AND/OR conditions
 export type AndCondition = {
   and: (WhereCondition | SubqueryCondition)[];
   not?: never;
@@ -293,7 +336,7 @@ export type IfCondition = {
 export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
-export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition;
+export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition;
 
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
@@ -308,7 +351,7 @@ export type SubqueryCondition = {
 };
 
 /* -------------------------------------------------------------------------- */
-/*                               PERMISSION PRESETS                           */
+/*                                   PRESETS                                  */
 /* -------------------------------------------------------------------------- */
 
 export const ALL: RolePermissions = { allowed: ["*"], disallowed: [] };

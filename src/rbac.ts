@@ -1,6 +1,11 @@
 import { count } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition } from "./types.ts";
+import { asc, desc } from "drizzle-orm";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.ts";
 
+
+/* -------------------------------------------------------------------------- */
+/*                               RESOLVE FIELDS                               */
+/* -------------------------------------------------------------------------- */
 // * Alias selected fields from the user
 export function alias_selected_fields(fields: Record<string, any>): Record<string, any> {
   const aliased: Record<string, any> = {};
@@ -63,94 +68,555 @@ function resolve_field(entry:string, default_table:string, structure: Structure,
 // * Resolve allowed fields
 export function resolve_fields(
     structure: Structure,
+    fields: string | string[],
+    type: string,
+    role: string,
+    defaultTable: string,
+    tableMap: Record<string, Record<string, any>>
+) {
+    const allowedFields: Record<string, any> = {};
+
+    if (!fields) return allowedFields;
+
+    const entries = Array.isArray(fields) ? fields : [fields];
+
+    for (const rawEntry of entries) {
+        const isCount = rawEntry.startsWith("$count.");
+        const entry = isCount ? rawEntry.slice(7) : rawEntry;
+
+        const [table, field] = entry.includes(".")
+            ? entry.split(".")
+            : [defaultTable, entry];
+
+        const tableStruct = structure[table];
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
+
+        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
+        }
+
+        const permissions = endpoint[role];
+
+        if (
+            !permissions ||
+            typeof permissions !== "object" ||
+            Array.isArray(permissions)
+        ) {
+            continue;
+        }
+
+        const allowed = permissions.allowed ?? permissions.allow ?? [];
+        const disallowed = permissions.disallowed ?? permissions.deny ?? [];
+
+        const tableFields = tableMap[table];
+
+        const addField = (fieldName: string) => {
+            if (!resolve_allowed_fields(fieldName, allowed, disallowed)) {
+                return;
+            }
+
+            const fieldRef = tableFields[fieldName];
+
+            if (fieldRef === undefined) {
+                throw new Error(
+                    `Field '${fieldName}' does not exist on table '${table}'`
+                );
+            }
+
+            allowedFields[`${table}.${fieldName}`] = isCount
+                ? count(fieldRef)
+                : fieldRef;
+        };
+
+        if (field === "*") {
+            for (const fieldName in tableFields) {
+                addField(fieldName);
+            }
+        } else {
+            addField(field);
+        }
+    }
+
+    return allowedFields;
+}
+
+export function resolve_returning_fields(
+    structure: Structure,
+    fields: string | string[],
+    type: string,
+    role: string,
+    defaultTable: string,
+    tableMap: Record<string, Record<string, any>>
+) {
+    const allowedFields: Record<string, any> = {};
+
+    if (!fields) return allowedFields;
+
+    const entries = Array.isArray(fields) ? fields : [fields];
+
+    for (const rawEntry of entries) {
+        // hard disable count
+        if (rawEntry.startsWith("$count.")) {
+            throw new Error("$count fields are disabled in returning");
+        }
+
+        const entry = rawEntry;
+
+        const [table, field] = entry.includes(".")
+            ? entry.split(".")
+            : [defaultTable, entry];
+
+        const tableStruct = structure[table];
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
+
+        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
+        }
+
+        const permissions = endpoint[role];
+
+        if (
+            !permissions ||
+            typeof permissions !== "object" ||
+            Array.isArray(permissions)
+        ) {
+            continue;
+        }
+
+        const returning = permissions.returning;
+
+        const tableFields = tableMap[table];
+
+        if (!tableFields) {
+            throw new Error(`Unknown table '${table}' in tableMap`);
+        }
+
+        // ----------------------------
+        // BOOLEAN MODE
+        // ----------------------------
+        if (typeof returning === "boolean") {
+            if (!returning) continue;
+
+            const addField = (fieldName: string) => {
+                const fieldRef = tableFields[fieldName];
+
+                if (fieldRef === undefined) {
+                    throw new Error(
+                        `Field '${fieldName}' does not exist on table '${table}'`
+                    );
+                }
+
+                allowedFields[`${table}.${fieldName}`] = fieldRef;
+            };
+
+            if (field === "*") {
+                for (const fieldName in tableFields) {
+                    addField(fieldName);
+                }
+            } else {
+                addField(field);
+            }
+
+            continue;
+        }
+
+        // ----------------------------
+        // OBJECT MODE
+        // ----------------------------
+        const allowed = returning?.allowed ?? returning?.allow ?? [];
+        const disallowed = returning?.disallowed ?? returning?.deny ?? [];
+
+        const addField = (fieldName: string) => {
+            if (
+                !resolve_allowed_fields(fieldName, allowed, disallowed)
+            ) {
+                return;
+            }
+
+            const fieldRef = tableFields[fieldName];
+
+            if (fieldRef === undefined) {
+                throw new Error(
+                    `Field '${fieldName}' does not exist on table '${table}'`
+                );
+            }
+
+            allowedFields[`${table}.${fieldName}`] = fieldRef;
+        };
+
+        if (field === "*") {
+            for (const fieldName in tableFields) {
+                addField(fieldName);
+            }
+        } else {
+            addField(field);
+        }
+    }
+
+    return allowedFields;
+}
+
+export function resolve_group_by_fields(
+  structure: Structure,
+  fields: any,
+  type: string,
+  role: string,
+  default_table: string,
+  tableMap: Record<string, Record<string, any>>
+) {
+  const result: any[] = [];
+
+  if (!fields) return result;
+
+  const list = Array.isArray(fields)
+    ? fields
+    : typeof fields === "string"
+      ? [fields]
+      : [];
+
+  function resolve(entry: string) {
+    if (typeof entry !== "string") return;
+
+    let raw = entry.trim();
+
+    if (raw === "*") {
+      throw new Error("'*' not allowed in group_by");
+    }
+
+    if (raw.startsWith("$count")) {
+      throw new Error("$count not allowed in group_by");
+    }
+
+    // -----------------------------
+    // resolve table/field
+    // -----------------------------
+    let table: string;
+    let field: string;
+
+    if (raw.includes(".")) {
+      [table, field] = raw.split(".");
+    } else {
+      table = default_table;
+      field = raw;
+    }
+
+    const tableStruct = structure[table];
+    if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+
+    const endpoint = tableStruct.endpoints.find(e => e.type === type);
+    if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
+
+    const rolePermissions = endpoint[role];
+    if (!rolePermissions || typeof rolePermissions !== "object") return;
+
+    const allowed =
+      "allowed" in rolePermissions
+        ? rolePermissions.allowed
+        : rolePermissions.allow ?? [];
+
+    const disallowed =
+      "disallowed" in rolePermissions
+        ? rolePermissions.disallowed ?? []
+        : rolePermissions.deny ?? [];
+
+    // -----------------------------
+    // permission check
+    // -----------------------------
+    if (!resolve_allowed_fields(field, allowed, disallowed)) {
+      return;
+    }
+
+    // -----------------------------
+    // existence check
+    // -----------------------------
+    const column = tableMap[table]?.[field];
+    if (!column) {
+      throw new Error(`Invalid group_by column: ${table}.${field}`);
+    }
+
+    result.push(column);
+  }
+
+  for (const f of list) resolve(f);
+
+  return result;
+}
+
+export function resolve_order_by_fields(
+    structure: Structure,
     fields: any,
     type: string,
     role: string,
     default_table: string,
     tableMap: Record<string, Record<string, any>>
 ) {
-    const allowed_fields: Record<string, any> = {};
-    if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) return allowed_fields;
+    const resolved_fields: any[] = [];
 
-    const keys = Array.isArray(fields) ? fields : fields;
+    if (!fields || (typeof fields !== "string" && !Array.isArray(fields))) {
+        return resolved_fields;
+    }
 
-    function resolve_field(entry:string) {
+    const keys = Array.isArray(fields) ? fields : [fields];
+
+    function resolve_field(entry: string) {
+        if (typeof entry !== "string") return;
+
+        let direction: "ASC" | "DESC" = "ASC";
+        let raw = entry.trim();
+
+        // -----------------------------------
+        // Parse direction prefix
+        // -----------------------------------
+
+        if (raw.startsWith("$desc.")) {
+            direction = "DESC";
+            raw = raw.slice(6);
+        } else if (raw.startsWith("$asc.")) {
+            direction = "ASC";
+            raw = raw.slice(5);
+        }
+
+        // -----------------------------------
+        // Remove unsupported syntax
+        // -----------------------------------
+
+        if (raw === "*") {
+            throw new Error(`'*' is not allowed in order_by`);
+        }
+
+        if (raw.startsWith("$count")) {
+            throw new Error(`'$count' is not allowed in order_by`);
+        }
+
+        // -----------------------------------
+        // Resolve table + field
+        // -----------------------------------
+
         let table: string;
         let field: string;
 
-        console.log('ENTRY: ',entry)
-        const isCount = entry.startsWith("$count.");
-        const plain_entry = isCount ? entry.slice(7) : entry;
-        console.log('IS COUNT: ', isCount)
-
-        if (plain_entry.includes(".")) [table, field] = plain_entry.split(".");
-        else {
+        if (raw.includes(".")) {
+            [table, field] = raw.split(".");
+        } else {
             table = default_table;
-            field = plain_entry;
+            field = raw;
         }
 
-        const tableStruct = structure[table];
-        if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+        // -----------------------------------
+        // Validate table
+        // -----------------------------------
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
-        if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
+        const tableStruct = structure[table];
+
+        if (!tableStruct) {
+            throw new Error(`Unknown table '${table}'`);
+        }
+
+        // -----------------------------------
+        // Validate endpoint
+        // -----------------------------------
+
+        const endpoint = tableStruct.endpoints.find(
+            (e) => e.type === type
+        );
+
+        if (!endpoint) {
+            throw new Error(`${type} not allowed on ${table}`);
+        }
+
+        // -----------------------------------
+        // Validate role permissions
+        // -----------------------------------
 
         const rolePermissions = endpoint[role];
-        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
+
+        if (
+            typeof rolePermissions !== "object" ||
+            !rolePermissions ||
+            Array.isArray(rolePermissions)
+        ) {
             return;
         }
 
         const allowed =
-            'allowed' in rolePermissions
+            "allowed" in rolePermissions
                 ? rolePermissions.allowed
-                : 'allow' in rolePermissions
+                : "allow" in rolePermissions
                 ? rolePermissions.allow
                 : [];
 
         const disallowed =
-            'disallowed' in rolePermissions
+            "disallowed" in rolePermissions
                 ? rolePermissions.disallowed ?? []
-                : 'deny' in rolePermissions
+                : "deny" in rolePermissions
                 ? rolePermissions.deny ?? []
                 : [];
-    
-        if(field == "*") {
-            for (const current_field of Object.keys(tableMap[table])) {
-                if (!resolve_allowed_fields(current_field, allowed, disallowed)) {
-                    console.log("TABLE: ", table)
-                    console.log("REMOVED: ",current_field)
-                    continue
-                };
-                const field_reference = tableMap[table][current_field]
-                console.log('current field: ', current_field)
-                if(isCount) {
-                    allowed_fields[`${table}.${current_field}`] = count(field_reference)
-                }else allowed_fields[`${table}.${current_field}`] = field_reference;
+
+        // -----------------------------------
+        // Validate field permissions
+        // -----------------------------------
+
+        if (
+            !resolve_allowed_fields(
+                field,
+                allowed,
+                disallowed
+            )
+        ) {
+            return;
+        }
+
+        // -----------------------------------
+        // Validate field existence
+        // -----------------------------------
+
+        if (!(field in tableMap[table])) {
+            throw new Error(
+                `Field '${field}' does not exist on table '${table}'`
+            );
+        }
+
+        const field_reference = tableMap[table][field];
+
+        // -----------------------------------
+        // Build drizzle order expression
+        // -----------------------------------
+
+        resolved_fields.push(
+            direction === "DESC"
+                ? desc(field_reference)
+                : asc(field_reference)
+        );
+    }
+
+    for (const entry of keys) {
+        resolve_field(entry);
+    }
+
+    return resolved_fields;
+}
+
+export function toArray<T>(v: T | T[] | null | undefined): T[] {
+  if (!v) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+// * Checkes if the field is accepted inside of structure
+function matchesField(field: string, rule: string): boolean {
+    if (rule === "*") return true;
+    else if(rule === field) return true
+    return false
+}
+
+// * Combines allowed and not allowed permission to check if allowed
+function matchesPermission(
+    field: string,
+    permission?: FieldPermission
+): {result: boolean, matched_field: any} {
+    if (!permission) return { result: false, matched_field: null };
+
+    if(typeof permission == 'string') {
+        return { result: matchesField(field, permission), matched_field: field };
+    }
+
+    if (Array.isArray(permission)) {
+        for(let rule of permission) {
+            const result = matchesField(field, rule)
+            console.log('RESULT:', result)
+            if(result) return { result, matched_field: field }
+        }
+        return { result: false, matched_field: field };
+    }
+
+    if (typeof permission === "object") {
+        const rule = permission.field;
+
+        if (Array.isArray(rule)) {
+            if (rule.includes("*")) return { result: true, matched_field: "*" };
+            for(let r of rule) {
+                const result = matchesField(field, r)
+                console.log(result)
+                if(result) return { result, matched_field: field }
             }
-        }else {
-            if (!resolve_allowed_fields(field, allowed, disallowed)) {
-                console.log("TABLE: ", table)
-                console.log("REMOVED: ",field)
-                return
-            };
-            if (!(field in tableMap[table])) throw new Error(`Field '${field}' does not exist on table '${table}'`);
-            const field_reference = tableMap[table][field]
-            if(isCount) {
-                allowed_fields[`${table}.${field}`] = count(field_reference)
-            }else allowed_fields[`${table}.${field}`] = field_reference;
+            return { result: false, matched_field: field };
         }
+
+        return { result: matchesField(field, rule), matched_field: field }
     }
 
-    if(typeof keys == 'string') {
-        resolve_field(keys)
-    }
-    if(Array.isArray(keys)) {
-        for (const entry of keys) {
-            resolve_field(entry)
-        }
+    return { result: false, matched_field: field };
+}
+
+// * Resolve if field is allowed
+export function resolve_allowed_fields(
+    field: string,
+    allowed?: FieldPermission,
+    disallowed?: FieldPermission
+): boolean {
+
+    const { result: isAllowed } = matchesPermission(field, allowed);
+    if (!isAllowed) return false;
+
+    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
+    if (isDisallowed) {
+        if(isAllowed && disallowed_matched_field == "*") return true
+        else return false
     }
 
-    return allowed_fields;
+    return true;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                   REMOVE PREFIXES FROM RETURNED STRUCTURE                  */
+/* -------------------------------------------------------------------------- */
+export function stripPrefixes(input: any): any {
+    // * Handle arrays
+    if (Array.isArray(input)) {
+        return input.map(stripPrefixes);
+    }
+
+    // * Handle objects (but not null)
+    if (input !== null && typeof input === "object") {
+        const cleaned: Record<string, any> = {};
+
+        for (const [key, value] of Object.entries(input)) {
+            let cleanKey = key.includes(".") ? key.split(".").pop()! : key;
+            if (Object.prototype.hasOwnProperty.call(cleaned, cleanKey)) {
+                cleanKey = key.includes(".") ? key.replace(".", "_") : `${key}_${value}`;
+            }
+            cleaned[cleanKey] = stripPrefixes(value);
+        }
+
+        return cleaned;
+    }
+
+    // * Primitives (string, number, boolean, null, undefined)
+    return input;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                DATA RESOLVE                                */
+/* -------------------------------------------------------------------------- */
+// * Simply checks if value passed is undefined
+export function is_undefined(v: any) {
+    if (v === undefined) throw new Error(`Undefined value not supported`);
+    return v;
+}
+
+const DATA_REF_REGEX = /^\$data\.(.+)$/;
+
+function isDataRef(value: unknown): boolean {
+    return typeof value === "string" && DATA_REF_REGEX.test(value);
+}
+
+function checkObject(obj: Record<string, any>): boolean {
+    return Object.values(obj).some(isDataRef);
 }
 
 // * Resolve allowed passed data
@@ -240,115 +706,8 @@ export function resolve_data(
     return allowed_fields;
 }
 
-// * Checkes if the field is accepted inside of structure
-function matchesField(field: string, rule: string): boolean {
-    if (rule === "*") return true;
-    else if(rule === field) return true
-    return false
-}
-
-// * Combines allowed and not allowed permission to check if allowed
-function matchesPermission(
-    field: string,
-    permission?: FieldPermission
-): {result: boolean, matched_field: any} {
-    if (!permission) return { result: false, matched_field: null };
-
-    if(typeof permission == 'string') {
-        return { result: matchesField(field, permission), matched_field: field };
-    }
-
-    if (Array.isArray(permission)) {
-        for(let rule of permission) {
-            const result = matchesField(field, rule)
-            console.log('RESULT:', result)
-            if(result) return { result, matched_field: field }
-        }
-        return { result: false, matched_field: field };
-    }
-
-    if (typeof permission === "object") {
-        const rule = permission.field;
-
-        if (Array.isArray(rule)) {
-            if (rule.includes("*")) return { result: true, matched_field: "*" };
-            for(let r of rule) {
-                const result = matchesField(field, r)
-                console.log(result)
-                if(result) return { result, matched_field: field }
-            }
-            return { result: false, matched_field: field };
-        }
-
-        return { result: matchesField(field, rule), matched_field: field }
-    }
-
-    return { result: false, matched_field: field };
-}
-
-// * Resolve if field is allowed
-export function resolve_allowed_fields(
-    field: string,
-    allowed?: FieldPermission,
-    disallowed?: FieldPermission
-): boolean {
-
-    const { result: isAllowed } = matchesPermission(field, allowed);
-    if (!isAllowed) return false;
-
-    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
-    if (isDisallowed) {
-        if(isAllowed && disallowed_matched_field == "*") return true
-        else return false
-    }
-
-    return true;
-}
-
-// * Remove prefixes
-export function stripPrefixes(input: any): any {
-    // * Handle arrays
-    if (Array.isArray(input)) {
-        return input.map(stripPrefixes);
-    }
-
-    // * Handle objects (but not null)
-    if (input !== null && typeof input === "object") {
-        const cleaned: Record<string, any> = {};
-
-        for (const [key, value] of Object.entries(input)) {
-            let cleanKey = key.includes(".") ? key.split(".").pop()! : key;
-            if (Object.prototype.hasOwnProperty.call(cleaned, cleanKey)) {
-                cleanKey = key.includes(".") ? key.replace(".", "_") : `${key}_${value}`;
-            }
-            cleaned[cleanKey] = stripPrefixes(value);
-        }
-
-        return cleaned;
-    }
-
-    // * Primitives (string, number, boolean, null, undefined)
-    return input;
-}
-
-// * Simply checks if value passed is undefined
-export function is_undefined(v: any) {
-    if (v === undefined) throw new Error(`Undefined value not supported`);
-    return v;
-}
-
-const DATA_REF_REGEX = /^\$data\.(.+)$/;
-
-function isDataRef(value: unknown): boolean {
-    return typeof value === "string" && DATA_REF_REGEX.test(value);
-}
-
-function checkObject(obj: Record<string, any>): boolean {
-    return Object.values(obj).some(isDataRef);
-}
-
 export function requests_data(
-    cond: SimpleCondition | ExistsCondition | NotExistsCondition
+    cond: SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition
 ): boolean {
     return Object.entries(cond).some(([_, value]) => {
         if (typeof value === "string") {
@@ -498,10 +857,31 @@ export function resolveCustomValue(
 }
 
 // * checks operator type
-export function is_op_type(condition:SimpleCondition | ExistsCondition | NotExistsCondition, text:string) {
-    return ((condition.operator && condition.operator.toUpperCase() == text.toUpperCase()) || (condition.op && condition.op.toUpperCase() == text.toUpperCase()))
+type ConditionWithOperator<T extends string> =
+  | { operator: T; op?: never }
+  | { op: T; operator?: never }
+
+export function is_op_type<T extends string>(
+  condition:
+    | SimpleCondition
+    | ExistsCondition
+    | NotExistsCondition
+    | BetweenCondition
+    | NotBetweenCondition,
+  text: T
+): condition is Extract<
+  SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition,
+  ConditionWithOperator<T>
+> {
+  return (
+    condition.operator?.toUpperCase() === text.toUpperCase() ||
+    condition.op?.toUpperCase() === text.toUpperCase()
+  )
 }
 
+/* -------------------------------------------------------------------------- */
+/*                              WHERE VALIDATION                              */
+/* -------------------------------------------------------------------------- */
 // * validate fields of where condition before accessing it to check if the user has access to that field 
 export function validate_where_fields(
   cond: WhereCondition | SubqueryCondition,
