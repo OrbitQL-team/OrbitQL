@@ -11,6 +11,9 @@
 * Conditional logic (IF / AND / OR)
 * Dynamic joins
 * Workflow/state transition enforcement
+* Order and Group by
+* Before and after triggers which can change passed data, run queries and user functions
+* Bulk inserts
 
 Polaris compiles structured request definitions into **safe SQL queries**, enforcing complex business rules directly at the database level.
 
@@ -57,15 +60,14 @@ Roles can define:
 Unlike traditional RLS systems, Polaris can validate **incoming mutation data**:
 
 ```ts
-{
-  type: "IF",
+if: {
   when: {
-    left_value: "$data.attendances.type",
+    left_value: "$data.table.field",
     operator: "IS NOT",
     value: null
   },
-  do: put_type,
-  else: true
+  do: where_condition,
+  else: other_where_condition
 }
 ```
 
@@ -84,11 +86,11 @@ Polaris compares:
 * Existing row values
 * Incoming mutation payload
 * User/session data
+* Incoming mutation where condition fields
 
 Use cases:
 
 * Workflow progression validation
-* Attendance state changes
 * Approval chains
 * Business rule enforcement
 
@@ -100,16 +102,16 @@ Supports structured query definitions:
 
 ```ts
 {
-  table: "guest_code",
+  table: "orders",
   type: "GET",
   select: [
-    "guest_code.*",
+    "orders.*",
     "users.email"
   ],
   join: [
     {
       table: "users",
-      on: { "guest_code.user_id": "users.id" },
+      on: { "orders.user_id": "users.id" },
       type: "INNER"
     }
   ]
@@ -119,10 +121,10 @@ Supports structured query definitions:
 Generates SQL:
 
 ```sql
-SELECT guest_code.*, users.email
-FROM guest_code
+SELECT orders.*, users.email
+FROM orders
 INNER JOIN users
-  ON guest_code.user_id = users.id
+  ON orders.user_id = users.id
 ```
 
 All joins and filters are validated and secured.
@@ -147,6 +149,8 @@ Define which fields can be:
 * Selected
 * Inserted
 * Updated
+* Deleted
+* Returned
 
 Per role, per operation:
 
@@ -198,6 +202,7 @@ Polaris enables:
 * Join-aware access control
 * Declarative rule definition
 * Centralized policy enforcement
+* Api level triggers
 
 ---
 
@@ -227,7 +232,6 @@ Security relies on **all database access going through the handler** and no raw 
 
 ## 📦 Example Use Cases
 
-* Attendance tracking systems
 * Approval workflows
 * Multi-role SaaS backends
 * Business-rule-heavy APIs
@@ -279,7 +283,7 @@ Polaris will evolve into a **SaaS platform** with:
 * Developer plans for startups and indie builders
 * Advanced plans for production SaaS applications
 
-**Open-source code:** Polaris is fully open source and self-hostable. Users may modify and host the project freely, but it **cannot be used to create a commercial SaaS replicating Polaris functionality**.
+**Open-source code:** Polaris is fully open source and self-hostable. Users may modify and host the project freely.
 
 ---
 
