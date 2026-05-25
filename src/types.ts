@@ -139,11 +139,13 @@ type Limit = { limit?: number };
 
 type OrderBy = { order_by?: string[] | string };
 
+type GroupBy = { group_by?: string[] | string };
+
 export type Returning = {
   returning?: AllowedAliasesReturning & DisallowedAliasesReturning & boolean;
 }
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy & Returning;
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy & Returning & GroupBy;
 
 export type AllowedAliasesReturning =
   | { allowed: string | string[]; allow?: never }

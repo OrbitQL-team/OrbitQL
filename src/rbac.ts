@@ -34,7 +34,7 @@ function resolve_field(entry:string, default_table:string, structure: Structure,
     const tableStruct = structure[table];
     if (!tableStruct) throw new Error(`Unknown table '${table}'`);
 
-    const endpoint = tableStruct.endpoints.find(e => e.type === type);
+    const endpoint = tableStruct.endpoints.find(e => e.type.toUpperCase() === type.toUpperCase());
     if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
 
     const rolePermissions = endpoint[role];
@@ -93,7 +93,7 @@ export function resolve_fields(
             throw new Error(`Unknown table '${table}'`);
         }
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        const endpoint = tableStruct.endpoints.find(e => e.type.toUpperCase() === type.toUpperCase());
         if (!endpoint) {
             throw new Error(`${type} not allowed on ${table}`);
         }
@@ -174,7 +174,7 @@ export function resolve_returning_fields(
             throw new Error(`Unknown table '${table}'`);
         }
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        const endpoint = tableStruct.endpoints.find(e => e.type.toUpperCase() === type.toUpperCase());
         if (!endpoint) {
             throw new Error(`${type} not allowed on ${table}`);
         }
@@ -309,7 +309,7 @@ export function resolve_group_by_fields(
     const tableStruct = structure[table];
     if (!tableStruct) throw new Error(`Unknown table '${table}'`);
 
-    const endpoint = tableStruct.endpoints.find(e => e.type === type);
+    const endpoint = tableStruct.endpoints.find(e => e.type.toUpperCase() === type.toUpperCase());
     if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
 
     const rolePermissions = endpoint[role];
@@ -423,7 +423,7 @@ export function resolve_order_by_fields(
         // -----------------------------------
 
         const endpoint = tableStruct.endpoints.find(
-            (e) => e.type === type
+            (e) => e.type.toUpperCase() === type.toUpperCase()
         );
 
         if (!endpoint) {
@@ -664,7 +664,7 @@ export function resolve_data(
             throw new Error(`Unknown table '${table}'`);
         }
 
-        const endpoint = tableStruct.endpoints.find(e => e.type === type);
+        const endpoint = tableStruct.endpoints.find(e => e.type.toUpperCase() === type.toUpperCase());
         if (!endpoint) {
             throw new Error(`${type} not allowed on ${table}`);
         }
