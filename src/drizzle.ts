@@ -29,7 +29,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
     let joinCondition: any;
 
     // Support object with AND/OR inside 'on'
-    if (j.on && (j.on.type === "and" || j.on.type === "or")) {
+    if (j.on && (j.on.type.toUpperCase() === "AND" || j.on.type.toUpperCase() === "OR")) {
       // Complex condition
       joinCondition = await buildWhere(db, j.on, tableMap, user, role, structure, query, default_table, getTableName(default_table));
     } else {
@@ -55,8 +55,8 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
     if (!joinTable) throw new Error(`Join table '${j.table}' not found in tableMap`);
 
     // Apply the join type
-    if (j.type === "INNER") q.innerJoin(joinTable, joinCondition);
-    else if (j.type === "LEFT") q.leftJoin(joinTable, joinCondition);
+    if (j.type.toUpperCase() === "INNER") q.innerJoin(joinTable, joinCondition);
+    else if (j.type.toUpperCase() === "LEFT") q.leftJoin(joinTable, joinCondition);
     else throw new Error(`Unsupported join type: ${j.type}`);
   }
 }
@@ -504,17 +504,22 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
 
   if (built_where) q.where(built_where);
 
-  if (query.group_by) {
-    q.groupBy(...resolve_group_by_fields(structure, query.group_by, query.type, role, tableName, tableMap));
+  const groupByFields =
+    resolve_group_by_fields(structure, toArray(query.group_by), query.type, role, tableName, tableMap) ??
+    toArray(rolePermissions?.group_by) ??
+    [];
+
+  if (groupByFields.length > 0) {
+    q.groupBy(...groupByFields);
   }
 
   const orderByFields =
-    toArray(query.order_by) ??
+    resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
     toArray(rolePermissions?.order_by) ??
     [];
 
   if (orderByFields.length > 0) {
-    q.orderBy(...resolve_order_by_fields(structure, orderByFields, query.type, role, tableName, tableMap));
+    q.orderBy(...orderByFields);
   }
 
   if(limit != null) q.limit(limit)
@@ -546,18 +551,18 @@ export async function put_method(db: Database, options:BuildWhereOptions, query:
       }
 
       const orderByFields =
-        toArray(query.order_by) ??
+        resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
         toArray(rolePermissions?.order_by) ??
         [];
 
       if (orderByFields.length > 0) {
-        update_query.orderBy(...resolve_order_by_fields(structure, orderByFields, query.type, role, tableName, tableMap));
+        update_query.orderBy(...orderByFields);
       }
 
       if(limit != null) update_query.limit(limit)
 
       if(query.returning) {
-        let fields = resolve_returning_fields(structure, query.returning, "PUT", role, tableName, tableMap)
+        let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
         fields = alias_selected_fields(fields)
         if (Object.keys(fields).length === 0) {
           throw new Error("No valid returning fields allowed");
@@ -586,7 +591,7 @@ export async function post_method(db: Database, options:BuildWhereOptions, query
         .values(selected_data_fields)
 
       if(query.returning) {
-        let fields = resolve_returning_fields(structure, query.returning, "POST", role, tableName, tableMap)
+        let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
         fields = alias_selected_fields(fields)
         if (Object.keys(fields).length === 0) {
           throw new Error("No valid returning fields allowed");
@@ -617,18 +622,18 @@ export async function delete_method(db: Database, options:BuildWhereOptions, que
       }
 
       const orderByFields =
-        toArray(query.order_by) ??
+        resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
         toArray(rolePermissions?.order_by) ??
         [];
 
       if (orderByFields.length > 0) {
-        delete_query.orderBy(...resolve_order_by_fields(structure, orderByFields, query.type, role, tableName, tableMap));
+        delete_query.orderBy(...orderByFields);
       }
 
       if(limit != null) delete_query.limit(limit)
 
       if(query.returning) {
-        let fields = resolve_returning_fields(structure, query.returning, "DELETE", role, tableName, tableMap)
+        let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
         fields = alias_selected_fields(fields)
         if (Object.keys(fields).length === 0) {
           throw new Error("No valid returning fields allowed");

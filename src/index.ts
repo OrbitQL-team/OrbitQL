@@ -14,12 +14,12 @@ export default async function build_query(db: Database, query: StructuredQuery, 
   const tableStruct = structure[tableName];
   if (!tableStruct) throw new Error(`Table ${tableName} not found`);
 
-  const query_type = query.type
+  const query_type = query.type.toUpperCase()
 
   /* -------------------------------------------------------------------------- */
   /*                             ENDPOINT RETRIEVING                            */
   /* -------------------------------------------------------------------------- */
-  const endpoint = tableStruct.endpoints.find((e:any) => e.type === query_type);
+  const endpoint = tableStruct.endpoints.find((e:any) => e.type.toUpperCase() === query_type);
   if (!endpoint) throw new Error(`${query_type} not allowed on ${tableName}`);
 
   if(!endpoint[role]) {
