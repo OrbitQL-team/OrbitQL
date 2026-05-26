@@ -526,6 +526,8 @@ export async function get_method(db: Database, options:BuildWhereOptions, query:
 
   return {
     execute: async () => {
+      const sql = q.toSQL()
+      console.log(sql.sql, sql.params)
       const rows = await q.execute();
 
       // Only run `after` if defined

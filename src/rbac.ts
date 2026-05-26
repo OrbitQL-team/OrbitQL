@@ -1,4 +1,4 @@
-import { count } from "drizzle-orm";
+import { avg, avgDistinct, count, countDistinct, max, min, sum, sumDistinct } from "drizzle-orm";
 import { asc, desc } from "drizzle-orm";
 import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.ts";
 
@@ -16,19 +16,14 @@ export function alias_selected_fields(fields: Record<string, any>): Record<strin
   return aliased;
 }
 
-function resolve_field(entry:string, default_table:string, structure: Structure, type:string, role:string, tableMap: Record<string, Record<string, any>>):boolean {
+function is_allowed_field(entry:string, default_table:string, structure: Structure, type:string, role:string, tableMap: Record<string, Record<string, any>>):boolean {
     let table: string;
     let field: string;
 
-    console.log('ENTRY: ',entry)
-    const isCount = entry.startsWith("$count.");
-    const plain_entry = isCount ? entry.slice(7) : entry;
-    console.log('IS COUNT: ', isCount)
-
-    if (plain_entry.includes(".")) [table, field] = plain_entry.split(".");
+    if (entry.includes(".")) [table, field] = entry.split(".");
     else {
         table = default_table;
-        field = plain_entry;
+        field = entry;
     }
 
     const tableStruct = structure[table];
@@ -65,6 +60,108 @@ function resolve_field(entry:string, default_table:string, structure: Structure,
     return true
 }
 
+type AggregateOp =
+    | "COUNT"
+    | "COUNTDISTINCT"
+    | "SUM"
+    | "SUMDISTINCT"
+    | "AVG"
+    | "AVGDISTINCT"
+    | "MIN"
+    | "MAX";
+
+interface ParsedField {
+    aggregate: AggregateOp | null;
+    field: string;
+}
+
+const AGGREGATES = new Set<AggregateOp>([
+    "COUNT",
+    "COUNTDISTINCT",
+    "SUM",
+    "SUMDISTINCT",
+    "AVG",
+    "AVGDISTINCT",
+    "MIN",
+    "MAX",
+]);
+
+function applyAggregate(
+    parameter: any,
+    aggregate: AggregateOp | null
+): any {
+    if (!aggregate) return parameter;
+
+    switch (aggregate) {
+        case "COUNT":
+            return count(parameter);
+
+        case "COUNTDISTINCT":
+            return countDistinct(parameter);
+
+        case "SUM":
+            return sum(parameter);
+
+        case "SUMDISTINCT":
+            return sumDistinct(parameter);
+
+        case "AVG":
+            return avg(parameter);
+
+        case "AVGDISTINCT":
+            return avgDistinct(parameter);
+
+        case "MIN":
+            return min(parameter);
+
+        case "MAX":
+            return max(parameter);
+
+        default:
+            return parameter;
+    }
+}
+
+function normalizeOp(op: string): string {
+    return op
+        .trim()
+        .replace(/_/g, "")
+        .toUpperCase();
+}
+
+function get_custom_field(rawEntry: string): ParsedField {
+    if (!rawEntry.startsWith("$")) {
+        return { aggregate: null, field: rawEntry };
+    }
+
+    const dotIndex = rawEntry.indexOf(".");
+
+    if (dotIndex === -1) {
+        return { aggregate: null, field: rawEntry };
+    }
+
+    const opRaw = normalizeOp(rawEntry.slice(1, dotIndex));
+    const field = rawEntry.slice(dotIndex + 1);
+
+    if (!field) {
+        return { aggregate: null, field: rawEntry };
+    }
+
+    const op = opRaw as AggregateOp;
+
+    if (AGGREGATES.has(op)) {
+        return {
+            aggregate: op,
+            field,
+        };
+    }
+
+    return {
+        aggregate: null,
+        field: rawEntry,
+    };
+}
+
 // * Resolve allowed fields
 export function resolve_fields(
     structure: Structure,
@@ -81,8 +178,7 @@ export function resolve_fields(
     const entries = Array.isArray(fields) ? fields : [fields];
 
     for (const rawEntry of entries) {
-        const isCount = rawEntry.startsWith("$count.");
-        const entry = isCount ? rawEntry.slice(7) : rawEntry;
+        let { field: entry, aggregate } = get_custom_field(rawEntry)
 
         const [table, field] = entry.includes(".")
             ? entry.split(".")
@@ -126,9 +222,7 @@ export function resolve_fields(
                 );
             }
 
-            allowedFields[`${table}.${fieldName}`] = isCount
-                ? count(fieldRef)
-                : fieldRef;
+            allowedFields[`${table}.${fieldName}`] = applyAggregate(fieldRef, aggregate)
         };
 
         if (field === "*") {
@@ -159,8 +253,12 @@ export function resolve_returning_fields(
 
     for (const rawEntry of entries) {
         // hard disable count
-        if (rawEntry.startsWith("$count.")) {
-            throw new Error("$count fields are disabled in returning");
+        const parsed = get_custom_field(rawEntry);
+
+        if (parsed.aggregate) {
+            throw new Error(
+                `$${parsed.aggregate} fields are disabled in returning`
+            );
         }
 
         const entry = rawEntry;
@@ -289,8 +387,12 @@ export function resolve_group_by_fields(
       throw new Error("'*' not allowed in group_by");
     }
 
-    if (raw.startsWith("$count")) {
-      throw new Error("$count not allowed in group_by");
+    const parsed = get_custom_field(raw);
+
+    if (parsed.aggregate) {
+        throw new Error(
+            `$${parsed.aggregate} fields are disabled in returning`
+        );
     }
 
     // -----------------------------
@@ -390,8 +492,12 @@ export function resolve_order_by_fields(
             throw new Error(`'*' is not allowed in order_by`);
         }
 
-        if (raw.startsWith("$count")) {
-            throw new Error(`'$count' is not allowed in order_by`);
+        const parsed = get_custom_field(raw);
+
+        if (parsed.aggregate) {
+            throw new Error(
+                `$${parsed.aggregate} fields are disabled in returning`
+            );
         }
 
         // -----------------------------------
@@ -987,7 +1093,7 @@ export function validate_where_fields(
       if (match) {
         const field = match[1];
 
-        const allowed = resolve_field(
+        const allowed = is_allowed_field(
           field,
           default_table,
           structure,
@@ -1038,7 +1144,7 @@ export function validate_where_fields(
 
   // ---- FIELD ----
   if ("field" in newCond && newCond.field) {
-    const allowed = resolve_field(
+    const allowed = is_allowed_field(
       newCond.field,
       default_table,
       structure,
