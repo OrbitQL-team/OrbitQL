@@ -4,18 +4,23 @@
 
 The query engine supports special runtime tokens.
 
-| Token | Description |
-|---|---|
-| `$user.field` | Access authenticated user fields |
-| `$data.field` | Access incoming mutation data |
-| `$col.field` | Reference another column |
-| `$count.field` | Aggregate count |
-| `$sum.field` | Aggregate sum |
-| `$avg.field` | Aggregate average |
-| `$min.field` | Aggregate minimum |
-| `$max.field` | Aggregate maximum |
-| `$asc.field` | Ascending ordering |
-| `$desc.field` | Descending ordering |
+All tokens are case-insensitive and support both snake_case and camelCase (e.g. $countDistinct, $count_distinct, $COUNTDISTINCT are equivalent).
+
+| Token                  | Description                      |
+| ---------------------- | -------------------------------- |
+| `$user.field`          | Access authenticated user fields |
+| `$data.field`          | Access incoming mutation data    |
+| `$col.field`           | Reference another column         |
+| `$count.field`         | Aggregate count                  |
+| `$countDistinct.field` | Aggregate distinct count         |
+| `$sum.field`           | Aggregate sum                    |
+| `$sumDistinct.field`   | Aggregate distinct sum           |
+| `$avg.field`           | Aggregate average                |
+| `$avgDistinct.field`   | Aggregate distinct average       |
+| `$min.field`           | Aggregate minimum                |
+| `$max.field`           | Aggregate maximum                |
+| `$asc.field`           | Ascending ordering               |
+| `$desc.field`          | Descending ordering              |
 
 ---
 
