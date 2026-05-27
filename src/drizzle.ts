@@ -429,7 +429,14 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   // Start empty SQL object
   const need_table:boolean = query.join ? true : has_field_or_col_attribute(where_condtion)
   
-  let check_query:any = sql`COALESCE(MAX(CASE WHEN `.append(sql`${where}`).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
+  const check_query = sql<number>`
+    COALESCE(
+      MAX(
+        CASE WHEN ${where} THEN 1 ELSE 0 END
+      ),
+      0
+    ) AS result
+  `;
 
   const from_table = need_table ? default_table : sql`(select 1) AS t`
 
