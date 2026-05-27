@@ -29,7 +29,7 @@ export async function buildJoin(db:Database, q: any, joins: any[], tableMap: Rec
     let joinCondition: any;
 
     // Support object with AND/OR inside 'on'
-    if (j.on && (j.on.type.toUpperCase() === "AND" || j.on.type.toUpperCase() === "OR")) {
+    if (j.on && j.on.type && (j.on.type.toUpperCase() === "AND" || j.on.type.toUpperCase() === "OR")) {
       // Complex condition
       joinCondition = await buildWhere(db, j.on, tableMap, user, role, structure, query, default_table, getTableName(default_table));
     } else {
@@ -427,7 +427,7 @@ export async function if_condition(db:Database, where_condtion:WhereCondition, t
   let where = await buildWhere(db, where_condtion, table_map, user, role, structure, query, default_table, getTableName(default_table));
 
   // Start empty SQL object
-  const need_table:boolean = has_field_or_col_attribute(where_condtion)
+  const need_table:boolean = query.join ? true : has_field_or_col_attribute(where_condtion)
   
   let check_query:any = sql`COALESCE(MAX(CASE WHEN `.append(sql`${where}`).append(sql` THEN 1 ELSE 0 END ), 0) AS RESULT`);
 

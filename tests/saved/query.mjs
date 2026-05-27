@@ -1,11 +1,15 @@
 export default {
-  "type": "POST",
-  "data": {
-    "name": 'test returning',
-    "surname": 'test returning',
-    "email": 'test returning@email.work_maybe',
-    "have_access": 1
-  },
-  "returning": "name",
+  "type": "GET",
+  "select": ["*"],
   "table": "users",
+  join: [
+    {
+      table: "employees",
+      type: "LEFT",
+
+      on: {
+        "employees.employee_id": "users.id",
+      },
+    },
+  ],
 };

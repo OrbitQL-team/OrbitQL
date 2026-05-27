@@ -21,7 +21,144 @@ export default {
               "value": 1
             }
           },
-          "disallowed": "name",
+          "disallowed": "",
+          "limit": 10,
+        },
+      },
+      {
+        "type": "PUT",
+        "user": {
+          "allowed": {
+            "field": [
+              "name",
+              "surname"
+            ],
+            "where": {
+              "and": [
+                {
+                  "if": {
+                    "when": {
+                      "value": "$data.name",
+                      "op": "IS NOT NULL"
+                    },
+                    "do": true,
+                    "else": false
+                  },
+                },
+                {
+                  "if": {
+                    "when": {
+                      "value": "$data.surname",
+                      "op": "IS NOT NULL"
+                    },
+                    "do": true,
+                    "else": false
+                  },
+                },
+                {
+                  "field": "id",
+                  "op": "=",
+                  "value": "$user.id"
+                },
+                {
+                  "left_value": "$user.have_access",
+                  "op": "=",
+                  "value": 1
+                }
+              ]
+            }
+          },
+          "disallowed": [
+            "*"
+          ]
+        },
+        "admin": {
+          "allowed": {
+            "field": "*",
+            "where": {
+              "left_value": "$user.have_access",
+              "op": "=",
+              "value": 1
+            }
+          },
+          "disallowed": "",
+          "returning": true
+        },
+      },
+      {
+        "type": "POST",
+        "user": {
+          "allowed": [],
+          "disallowed": []
+        },
+        "admin": {
+          "allowed": "*",
+          "returning": true
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          },
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "surname",
+                "when": {
+                  "field": "surname",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "type": "DELETE",
+        "user": {
+          "allowed": [],
+          "disallowed": []
+        }
+      }
+    ],
+    "table": "users"
+  },
+  "employees": {
+    "endpoints": [
+      {
+        "type": "GET",
+        "user": {
+          "allow": [
+            "id",
+            "name",
+            "email",
+            "surname"
+          ],
+          "disallowed": "",
+        },
+        "admin": {
+          "allowed": {
+            "field": "*",
+            "where": {
+              "left_value": "$user.have_access",
+              "op": "=",
+              "value": 1
+            }
+          },
+          "disallowed": "",
           "limit": 10,
         },
       },

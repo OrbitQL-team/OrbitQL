@@ -93,12 +93,17 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   let user_select_data_fields: Record<string, any> = {};
 
-  if(query.select) {
-    user_select_data_fields = resolve_fields(structure, query.select, query_type, role, query.table, tableMap);
-    user_select_data_fields = alias_selected_fields(user_select_data_fields);
-  }else if(query.data) {
-    user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap);
-    user_select_data_fields = stripPrefixes(user_select_data_fields);
+  if(query_type == "GET") {
+    if("select" in query && query.select) {
+      user_select_data_fields = resolve_fields(structure, query.select, query_type, role, query.table, tableMap);
+      user_select_data_fields = alias_selected_fields(user_select_data_fields);
+    }else throw Error("Select is necessary on GET request")
+  }
+  if(query_type == "PUT" || query_type == "POST") {
+    if("data" in query && query.data) {
+      user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap);
+      user_select_data_fields = stripPrefixes(user_select_data_fields);
+    }else throw Error("Data is necessary on PUT/POST requests")
   }
 
   let result:any
