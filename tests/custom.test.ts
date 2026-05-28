@@ -25,11 +25,7 @@ if(structure == null) throw Error('Structure not passed')
 if(local_user == null) throw Error('User object not passed')
 if(selected_family == null) throw Error('Database family not selected')
 
-<<<<<<< HEAD:tests/custom.test.ts
 let db = await getDB(selected_family, db_host, db_user, db_pwd, db_name, schema)
-=======
-let db = getDB(selected_family, db_host, db_user, db_pwd, db_name, schema)
->>>>>>> b3e4993c27f3e895bace34d796215a175ab09e64:tests/index.test.ts
 
 function injectSchemaIntoTable(config:Record<string, TableStructure>, schema:any) {
   const result:any = {};
