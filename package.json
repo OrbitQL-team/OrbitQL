@@ -4,8 +4,7 @@
   "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
   "main": "src/index.ts",
   "scripts": {
-    "test": "node tests/runner/test-runner.mjs",
-    "test_raw": "vitest run"
+    "test": "node tests/runner/test-runner.mjs"
   },
   "repository": {
     "type": "git",

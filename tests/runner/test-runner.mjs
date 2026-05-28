@@ -33,56 +33,64 @@ async function main() {
       }
     }
   );
-  if(test.type == 'default') {
+  let db_select = await select()
+  let db = await createConnection(db_select);
 
-  }else if(test.type == 'custom') {
-    do {
-      let db_select = await select();
-
-      const { result: structure, previous } = await navigate_object('Structure body', '../saved/structure.mjs', default_structure);
-      if (previous) {
-        back = true;
-        continue;
+  const user_type = await prompts(
+    {
+      type: 'text',
+      name: 'role',
+      message: 'Select the user type:',
+      initial: user_role
+    },
+    {
+      onCancel: () => {
+          console.log('\nCancelled');
+          process.exit(1);
       }
+    }
+  )
 
-      const user_type = await prompts(
-        {
-          type: 'text',
-          name: 'role',
-          message: 'Select the user type:',
-          initial: user_role
-        },
-        {
-          onCancel: () => {
-              console.log('\nCancelled');
-              process.exit(1);
-          }
-        }
-      )
+  await save_to_file(user_type.role, '../saved/user_role.mjs')
 
-      await save_to_file(user_type.role, '../saved/user_role.mjs')
+  const { result: user, go_back_to_select } = await buildObject('User body', '../saved/user.mjs', default_user);
+  if (go_back_to_select) {
+    return
+  }
 
-      const { result: user, go_back_to_structure } = await buildObject('User body', '../saved/user.mjs', default_user);
-      if (go_back_to_structure) {
-        back = true;
-        continue;
-      }
+  const env = {
+    ...process.env,
+    DB_HOST:db.db_address,
+    DB_USER:db.user_name,
+    DB_FAMILY: db_select.family,
+    DB_PWD:db.password,
+    DB_NAME:db.db_name,
+    USER_OBJ: JSON.stringify(user),
+    USER_ROLE: user_type.role,
+  }
 
+  if(test.type == 'custom') {
+    //Create db connection
+    do{
+      
       const { result: query, go_back_to_user } = await navigate_object('Query Body', '../saved/query.mjs', default_query);
       if (go_back_to_user) {
         back = true;
         continue;
       }
 
+      const { result: structure, go_back_to_query } = await navigate_object('Policy Structure', '../saved/structure.mjs', default_structure);
+        if (go_back_to_query) {
+          back = true;
+          continue;
+      }
+
       // Run Vitest
-      const child = spawn('npx', ['vitest', 'run'], {
+      const child = spawn('npx', ['vitest', 'run', 'custom'], {
         stdio: 'inherit',
         env: {
           ...process.env,
-          DB: db_select.db,
-          DB_FAMILY: db_select.family,
-          USER_OBJ: JSON.stringify(user),
-          USER_ROLE: user_type.role,
+          ...env,
           STRUCTURE_OBJ: JSON.stringify(structure),
           STRUCTURE_QUERY: JSON.stringify(query),
         }
@@ -93,6 +101,18 @@ async function main() {
       });
 
     } while (back);
+  }else if(test.type == 'default') {
+    const child = spawn('npx', ['vitest', 'run', 'auto'], {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        ...env,
+      }
+    });
+
+    child.on('exit', (code) => {
+      process.exit(code ?? 0);
+    });
   }
 }
 
