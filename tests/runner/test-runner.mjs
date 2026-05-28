@@ -102,6 +102,26 @@ async function main() {
 
     } while (back);
   }else if(test.type == 'default') {
+    const run_mode = await prompts(
+      {
+        type: 'select',
+        name: 'mode',
+        message: 'Select the running mode:',
+        choices: [
+          { title: 'Sequential', value: 'sequential' },
+          { title: 'Parallel', value: 'parallel' },
+          { title: 'Exit', value: null }
+        ]
+      },
+      {
+        onCancel: () => {
+            console.log('\nCancelled');
+            process.exit(1);
+        }
+      }
+    )
+
+    env.RUN_MODE = run_mode.mode
     const child = spawn('npx', ['vitest', 'run', 'auto'], {
       stdio: 'inherit',
       env: {

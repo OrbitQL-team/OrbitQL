@@ -1,8 +1,6 @@
 import * as schema from './schema';
-import build_query from "../src";
-import { TableStructure } from "../src/types";
-import { it, expect } from "vitest";
 import { getDB } from "./runner/db-connection.mjs"
+import path from "path";
 
 const db_host = process.env.DB_HOST || null;
 const db_user = process.env.DB_USER || null;
@@ -11,6 +9,7 @@ const db_name = process.env.DB_NAME || null;
 const selected_family = process.env.DB_FAMILY || null;
 const local_user = process.env.USER_OBJ ? JSON.parse(process.env.USER_OBJ) : null
 const role = process.env.USER_ROLE ? process.env.USER_ROLE : null
+const run_mode = process.env.RUN_MODE ? process.env.RUN_MODE : "sequential"
 
 if(db_host == null) throw Error('DB host not passed')
 if(db_user == null) throw Error('DB user not passed')
@@ -22,49 +21,65 @@ if(selected_family == null) throw Error('Database family not selected')
 
 let db = await getDB(selected_family, db_host, db_user, db_pwd, db_name, schema)
 
-// function injectSchemaIntoTable(config:Record<string, TableStructure>, schema:any) {
-//   const result:any = {};
+async function runTests(count: number, mode: "sequential" | "parallel" = "sequential") {
+  const runOne = async (i: number) => {
+    const filePath = path.resolve(`./auto_tests/test_${i}.js`);
 
-//   for (const key in config) {
-//     if (!schema[key]) {
-//       throw new Error(`Missing schema for key: ${key}`);
-//     }
+    let module;
 
-//     result[key] = {
-//       ...config[key],
-//       table: schema[key] // ← replace "users" with schema.users
-//     };
-//   }
+    try {
+      module = await import(filePath);
+    } catch (err: any) {
+      if (err.code === "ERR_MODULE_NOT_FOUND" || err.message?.includes("Cannot find")) {
+        console.warn(`test_${i}.js not found, skipping`);
+        return { i, status: "missing" };
+      }
+      throw err;
+    }
 
-//   return result;
-// }
+    const testFn = module.default;
 
-// structure = injectSchemaIntoTable(structure, schema)
+    if (typeof testFn !== "function") {
+      console.warn(`test_${i}.js has no default function, skipping`);
+      return { i, status: "invalid" };
+    }
 
-// it("should measure build and execute performance", async () => {
-//   // Measure build time
-//   const buildStart = performance.now();
+    console.log(`Running test_${i}`);
 
-//   const built_query = await build_query(
-//     db,
-//     query,
-//     local_user,
-//     role,
-//     structure
-//   );
+    try {
+      await testFn();
+      return { i, status: "passed" };
+    } catch (err) {
+      console.error(`test_${i} failed`, err);
+      return { i, status: "failed", error: err };
+    }
+  };
 
-//   const buildTime = performance.now() - buildStart;
+  if (mode === "sequential") {
+    const results = [];
 
-//   // Measure execution time
-//   const execStart = performance.now();
+    for (let i = 0; i < count; i++) {
+      results.push(await runOne(i));
+    }
 
-//   const result = await built_query.execute();
+    return results;
+  }
 
-//   const execTime = performance.now() - execStart;
+  if (mode === "parallel") {
+    return await Promise.all(
+      Array.from({ length: count }, (_, i) => runOne(i))
+    );
+  }
+}
 
-//   console.log("Query result:", result);
-//   console.log(`Build time: ${buildTime.toFixed(2)} ms`);
-//   console.log(`Execute time: ${execTime.toFixed(2)} ms`);
-
-//   expect(result).toBeDefined();
-// });
+runTests(10, run_mode == "parallel" ? "parallel" : "sequential").then((results) => {
+    if(!results) throw new Error("No tests were run. Check if test files are named correctly and exist in the auto_tests directory.")
+    console.log("Test results:", results);
+    const passed = results.filter(r => r.status === "passed").length;
+    const failed = results.filter(r => r.status === "failed").length;
+    const missing = results.filter(r => r.status === "missing").length;
+    const invalid = results.filter(r => r.status === "invalid").length
+    console.log(`Summary: ${passed} passed, ${failed} failed, ${missing} missing, ${invalid} invalid`)
+}).catch((err) => {
+    console.error("Error running tests", err)
+});
