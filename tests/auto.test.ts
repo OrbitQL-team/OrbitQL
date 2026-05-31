@@ -1,6 +1,10 @@
 import * as schema from './schema';
 import { getDB } from "./runner/db-connection.mjs"
 import path from "path";
+import fs from "fs/promises";
+import structure from "./auto_tests/auto_tests_structure"
+import { TableStructure } from '../src/types';
+import { it, expect } from "vitest";
 
 const db_host = process.env.DB_HOST || null;
 const db_user = process.env.DB_USER || null;
@@ -21,65 +25,107 @@ if(selected_family == null) throw Error('Database family not selected')
 
 let db = await getDB(selected_family, db_host, db_user, db_pwd, db_name, schema)
 
-async function runTests(count: number, mode: "sequential" | "parallel" = "sequential") {
-  const runOne = async (i: number) => {
-    const filePath = path.resolve(`./auto_tests/test_${i}.js`);
+type TestStatus = "passed" | "failed" | "missing" | "invalid";
+
+type TestResult =
+  | { file: string; status: TestStatus; error?: unknown }
+  | { file: string; status: TestStatus };
+
+function injectSchemaIntoTable(config:Record<string, TableStructure>, schema:any) {
+  const result:any = {};
+
+  for (const key in config) {
+    if (!schema[key]) {
+      throw new Error(`Missing schema for key: ${key}`);
+    }
+
+    result[key] = {
+      ...config[key],
+      table: schema[key] // ← replace "users" with schema.users
+    };
+  }
+
+  return result;
+}
+
+let injected_structure = injectSchemaIntoTable(structure as any, schema)
+
+async function runTests(mode: "sequential" | "parallel" = "sequential") {
+  const dir = path.resolve("./tests/auto_tests");
+
+  const files = await fs.readdir(dir);
+
+  const testFiles = files
+    .filter((f) => f.startsWith("test_") && f.endsWith(".js"))
+    .sort();
+
+  const runOne = async (file: string): Promise<TestResult> => {
+    const filePath = path.resolve(dir, file);
 
     let module;
 
     try {
       module = await import(filePath);
     } catch (err: any) {
-      if (err.code === "ERR_MODULE_NOT_FOUND" || err.message?.includes("Cannot find")) {
-        console.warn(`test_${i}.js not found, skipping`);
-        return { i, status: "missing" };
-      }
-      throw err;
+      console.warn(`${file} failed to import`, err.message);
+      return { file, status: "missing" };
     }
 
     const testFn = module.default;
 
     if (typeof testFn !== "function") {
-      console.warn(`test_${i}.js has no default function, skipping`);
-      return { i, status: "invalid" };
+      console.warn(`${file} has no default export function`);
+      return { file, status: "invalid" };
     }
 
-    console.log(`Running test_${i}`);
+    console.log(`Running ${file}`);
 
     try {
-      await testFn();
-      return { i, status: "passed" };
+      await testFn(db, injected_structure, local_user, role);
+      return { file, status: "passed" };
     } catch (err) {
-      console.error(`test_${i} failed`, err);
-      return { i, status: "failed", error: err };
+      console.error(`${file} failed`, err);
+      return { file, status: "failed", error: err };
     }
   };
 
   if (mode === "sequential") {
-    const results = [];
+    const results: TestResult[] = [];
 
-    for (let i = 0; i < count; i++) {
-      results.push(await runOne(i));
+    for (const file of testFiles) {
+      results.push(await runOne(file));
     }
 
     return results;
   }
 
-  if (mode === "parallel") {
-    return await Promise.all(
-      Array.from({ length: count }, (_, i) => runOne(i))
-    );
-  }
+  return Promise.all(testFiles.map(runOne));
 }
 
-runTests(10, run_mode == "parallel" ? "parallel" : "sequential").then((results) => {
-    if(!results) throw new Error("No tests were run. Check if test files are named correctly and exist in the auto_tests directory.")
-    console.log("Test results:", results);
-    const passed = results.filter(r => r.status === "passed").length;
-    const failed = results.filter(r => r.status === "failed").length;
-    const missing = results.filter(r => r.status === "missing").length;
-    const invalid = results.filter(r => r.status === "invalid").length
-    console.log(`Summary: ${passed} passed, ${failed} failed, ${missing} missing, ${invalid} invalid`)
-}).catch((err) => {
-    console.error("Error running tests", err)
+it("runs Polaris auto test suite", async () => {
+  const results = await runTests(
+    run_mode === "parallel" ? "parallel" : "sequential"
+  );
+
+  if (!results) throw new Error("No tests were run");
+
+  console.log("Test results:", results);
+
+  const summary: Record<TestStatus, number> = {
+    passed: 0,
+    failed: 0,
+    missing: 0,
+    invalid: 0,
+  };
+
+  for (const r of results) {
+    summary[r.status]++;
+  }
+
+  console.log(
+    `Summary: ${summary.passed} passed, ${summary.failed} failed, ${summary.missing} missing, ${summary.invalid} invalid`
+  );
+
+  // IMPORTANT: make Vitest actually assert something
+  expect(summary.failed).toBe(0);
 });

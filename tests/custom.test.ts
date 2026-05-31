@@ -2,7 +2,6 @@ import * as schema from './schema';
 import build_query from "../src";
 import { NONE, StructuredQuery, TableStructure } from "../src/types";
 import { it, expect } from "vitest";
-import { createConnection } from './runner/db-connection.mjs';
 import { getDB } from "./runner/db-connection.mjs"
 
 const db_host = process.env.DB_HOST || null;
