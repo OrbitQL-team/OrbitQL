@@ -11,7 +11,6 @@ import user_role from '../saved/user_role.mjs'
 import { navigate_object } from './object-navigator-editor.mjs';
 import prompts from 'prompts';
 import { save_to_file } from './save-to-file.mjs';
-
 async function main() {
   let back = false;
 
@@ -99,7 +98,6 @@ async function main() {
       child.on('exit', (code) => {
         process.exit(code ?? 0);
       });
-
     } while (back);
   }else if(test.type == 'default') {
     const run_mode = await prompts(

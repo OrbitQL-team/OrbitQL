@@ -1,7 +1,10 @@
+/* -------------------------------------------------------------------------- */
+/*                                   IMPORTS                                  */
+/* -------------------------------------------------------------------------- */
 import { GelDatabase } from "drizzle-orm/gel-core";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase, TableConfig as PgTableConfig } from "drizzle-orm/pg-core";
+import { PgDatabase } from "drizzle-orm/pg-core";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
 import { LibSQLDatabase } from "drizzle-orm/libsql";
@@ -71,7 +74,7 @@ export type Database =
   | BunSQLiteDatabase;
 
 /* -------------------------------------------------------------------------- */
-/*                               STRUCTURE                                    */
+/*                                  STRUCTURE                                 */
 /* -------------------------------------------------------------------------- */
 
 export type Structure = Record<string, TableStructure>;
@@ -81,28 +84,47 @@ export type TableStructure = {
   table: any;
 };
 
+export const BuildWhereOptionsDefaults:BuildWhereOptions = {
+  disable_triggers: false,
+  after: false
+}
+
+export type BuildWhereOptions = {
+  disable_triggers?: boolean,
+  after?: number | boolean
+}
+
+export type Set_Value = {
+  set: {
+    field: string;
+    when: WhereCondition | SubqueryCondition;
+    value: any;
+    else_value?: any;
+  }
+}
+
 export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
+export type TriggerStructure = {
+  type: "BEFORE" | "AFTER";
+  query: StructuredQuery & IfCondition & Set_Value;
+}
 
 // Endpoint structure
 export type Endpoint = {
   // Explicit properties
   type: EndpointType;
-  order_by?: string[];
-  direction?: "asc" | "desc";
+  triggers?: TriggerStructure[];
+
   
   // Dynamic role properties
   [role: string]: 
     | RolePermissions 
     | typeof NONE 
-    | string[]
-    | "asc"
-    | "desc"
-    | EndpointType
-    | undefined;
+    | any;
 };
 
 /* -------------------------------------------------------------------------- */
-/*                                 ROLES                                      */
+/*                                 PERMISSIONS                                */
 /* -------------------------------------------------------------------------- */
 
 type AllowedAliases =
@@ -115,16 +137,23 @@ type DisallowedAliases =
 
 type Limit = { limit?: number };
 
-type ReturnBeforeStatus = { return_before?: boolean };
-type ReturnAfterStatus = { return_after?: boolean };
+type OrderBy = { order_by?: string[] | string };
 
-export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & ReturnBeforeStatus & ReturnAfterStatus;
+type GroupBy = { group_by?: string[] | string };
 
-export type Response = {
-  before: any,
-  response: any,
-  after:any
+export type Returning = {
+  returning?: AllowedAliasesReturning & DisallowedAliasesReturning & boolean;
 }
+
+export type RolePermissions = AllowedAliases & DisallowedAliases & Limit & OrderBy & Returning & GroupBy;
+
+export type AllowedAliasesReturning =
+  | { allowed: string | string[]; allow?: never }
+  | { allow: string | string[]; allowed?: never };
+
+export type DisallowedAliasesReturning =
+  | { disallowed?: string | string[]; deny?: never }
+  | { deny?: string | string[]; disallowed?: never };
 
 export type FieldPermission =
   | string | string[]
@@ -134,7 +163,7 @@ export type FieldPermission =
     };
 
 /* -------------------------------------------------------------------------- */
-/*                               OPERATORS                                    */
+/*                                  OPERATORS                                 */
 /* -------------------------------------------------------------------------- */
 
 export const SAFE_OPERATORS = [
@@ -152,15 +181,15 @@ export const SAFE_OPERATORS = [
   "IS NOT",
   "IS NULL",
   "IS NOT NULL",
-  "BETWEEN",
+  "NOT BETWEEN",
   "IN",
-  "EXISTS"
+  "NOT IN"
 ] as const;
 
 export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 /* -------------------------------------------------------------------------- */
-/*                               CONDITIONS                                   */
+/*                              QUERY/CONDITIONS                              */
 /* -------------------------------------------------------------------------- */
 
 export type StructuredQuery = {
@@ -169,14 +198,21 @@ export type StructuredQuery = {
   select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
-  data?: Record<string, any>;
-  group_by?: string[];
-  order_by?: string[];
+  data?: Record<string, any> | Record<string, any>[];
+  group_by?: string[] | string;
+  order_by?: string[] | string;
+  returning?: string[] | string;
   
   /* Queries executed after this one */
   after?: StructuredQuery[];
 
   [key: string]: any;
+};
+
+export type Join = {
+  table: keyof Structure;
+  type: "INNER" | "LEFT";
+  on: Record<string, string> | WhereCondition;
 };
 
 type OperatorAlias =
@@ -187,41 +223,112 @@ export type SimpleCondition = OperatorAlias & {
   field?: string;
   left_value?: any;
   value?: any;
+  start?:any;
+  end?:any;
 };
 
-export type Join = {
-  table: keyof Structure;
-  type: "INNER" | "LEFT";       // RIGHT & FULL removed (not supported + unsafe)
-  on: Record<string, string> | WhereCondition;  // either simple mapping or a complex condition
-};
+export type BetweenCondition =
+  | {
+      operator: "BETWEEN";
+      op?: never;
 
-type NotCondition = {
+      field: string;
+      start: any;
+      end: any;
+    }
+  | {
+      op: "BETWEEN";
+      operator?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    };
+
+export type NotBetweenCondition =
+  | {
+      operator: "BETWEEN";
+      op?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    }
+  | {
+      op: "BETWEEN";
+      operator?: never;
+
+      field: string;
+      start: any;
+      end: any;
+    };
+
+export type ExistsCondition =
+  | {
+      operator: "EXISTS";
+      op?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    }
+  | {
+      op: "EXISTS";
+      operator?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    };
+
+export type NotExistsCondition =
+  | {
+      operator: "NOT EXISTS";
+      op?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    }
+  | {
+      op: "NOT EXISTS";
+      operator?: never;
+      query: {
+        select: string[] | string;
+        from: string;
+        where?: WhereCondition;
+      };
+    };
+
+export type NotCondition = {
   not: WhereCondition | SubqueryCondition;
   and?: never;
   or?: never;
   if?: never;
 }
 
-// Nested AND/OR conditions
-type AndCondition = {
+export type AndCondition = {
   and: (WhereCondition | SubqueryCondition)[];
   not?: never;
   or?: never;
   if?: never;
 };
 
-type OrCondition = {
+export type OrCondition = {
   or: (WhereCondition | SubqueryCondition)[];
   not?: never;
   and?: never;
   if?: never;
 };
 
-type IfCondition = {
+export type IfCondition = {
   if: {
     when: WhereCondition | SubqueryCondition;
-    do?: WhereCondition | SubqueryCondition | boolean;
-    else?: WhereCondition | SubqueryCondition | boolean;
+    do?: WhereCondition | SubqueryCondition | boolean | StructuredQuery | Function;
+    else?: WhereCondition | SubqueryCondition | boolean | StructuredQuery | Function;
   };
   not?: never;
   and?: never;
@@ -231,7 +338,7 @@ type IfCondition = {
 export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
-export type WhereCondition = SimpleCondition | NestedCondition;
+export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition;
 
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
@@ -239,14 +346,14 @@ export type SubqueryCondition = {
   left_value?: any; //supports $data - $user - $col - any
   operator: "IN";
   value: {
-    select: string;
+    select: string[] | string;
     from: string;
-    where?: WhereCondition[];
+    where?: WhereCondition;
   };
 };
 
 /* -------------------------------------------------------------------------- */
-/*                               PERMISSION PRESETS                           */
+/*                                   PRESETS                                  */
 /* -------------------------------------------------------------------------- */
 
 export const ALL: RolePermissions = { allowed: ["*"], disallowed: [] };
