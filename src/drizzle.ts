@@ -122,7 +122,7 @@ async function if_conditions(db: Database, cond: IfCondition, tableMap: Record<s
 
 async function exists_condition(db: Database, cond: ExistsCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery) {
   let subTable = null
-  let fields = null
+  let fields:any = null
   let subWhere = null
   const sub_query = cond.query
   if(sub_query) {
@@ -144,7 +144,7 @@ async function exists_condition(db: Database, cond: ExistsCondition, tableMap: R
 
 async function not_exists_condition(db: Database, cond: NotExistsCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery) {
   let subTable = null
-  let fields = null
+  let fields:any = null
   let subWhere = null
   const sub_query = cond.query
   if(sub_query) {

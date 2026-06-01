@@ -14,7 +14,7 @@ export default async function select(
     where: {
       and: [
         {
-          field: 'have_access',
+          field: '$user.have_access',
           op: '!=',
           value: 1
         },
