@@ -1,15 +1,14 @@
 export default {
-  "type": "GET",
-  "select": ["*"],
-  "table": "users",
-  join: [
-    {
-      table: "employees",
-      type: "LEFT",
-
-      on: {
-        "employees.employee_id": "users.id",
-      },
-    },
+  type: "GET",
+  select: [
+    "$count.id",
+    "$count_distinct.id",
+    "$avg.age",
+    "$avg_distinct.age",
+    "$max.age",
+    "$min.age",
+    "$sum.age",
+    "$sum_distinct.age",
   ],
+  table: "users",
 };

@@ -222,7 +222,11 @@ export function resolve_fields(
                 );
             }
 
-            allowedFields[`${table}.${fieldName}`] = applyAggregate(fieldRef, aggregate)
+            const key = aggregate
+                ? `${aggregate}.${table}.${fieldName}`
+                : `${table}.${fieldName}`;
+
+                allowedFields[key] = applyAggregate(fieldRef, aggregate);
         };
 
         if (field === "*") {
