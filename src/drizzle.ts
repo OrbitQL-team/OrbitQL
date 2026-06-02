@@ -283,7 +283,7 @@ export async function buildWhere(db: Database, cond: WhereCondition, tableMap: R
     right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
   }
   
-  if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
+  if("start" in cond && "end" in cond && (is_op_type(cond, "BETWEEN") || is_op_type(cond, "NOT BETWEEN"))) {
     start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data);
     end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data);
   } else if(("start" in cond || "end" in cond)) {

@@ -181,7 +181,6 @@ export const SAFE_OPERATORS = [
   "IS NOT",
   "IS NULL",
   "IS NOT NULL",
-  "NOT BETWEEN",
   "IN",
   "NOT IN"
 ] as const;

@@ -9,25 +9,20 @@ export default async function select(
 ) {
   const query = {
     type: "GET",
-    select: "name",
+    select: "*",
     table: "users",
     where: {
-      and: [
+      or: [
         {
-          field: 'have_access',
-          op: '!=',
-          value: 1
+          "field": "age",
+          "operator": ">=",
+          "value": 30
         },
         {
-          field: 'email',
-          op: 'ILIKE',
-          value: '%example.com%'
-        },
-        {
-          field: 'email',
-          op: 'NOT ILIKE',
-          value: '%@TEST.TEST%'
-        },
+          "field": "age",
+          "operator": "<=",
+          "value": 25
+        }
       ]
     }
   };

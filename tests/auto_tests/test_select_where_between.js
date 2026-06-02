@@ -12,10 +12,20 @@ export default async function select(
     select: "*",
     table: "users",
     where: {
-      field: "age",
-      operator: "BETWEEN",
-      start: 13,
-      end: 56,
+      or: [
+        {
+          field: "age",
+          operator: "BETWEEN",
+          start: 13,
+          end: 56,
+        },
+        {
+          field: "age",
+          operator: "NOT BETWEEN",
+          start: 10,
+          end: 70,
+        }
+      ]
     },
   };
 

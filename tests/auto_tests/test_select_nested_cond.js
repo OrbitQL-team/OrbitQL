@@ -27,7 +27,7 @@ export default async function select(
                 },
                 {
                     field: 'email',
-                    op: 'LIKE',
+                    op: 'NOT LIKE',
                     value: '%@TEST.TEST%'
                 }
             ]
