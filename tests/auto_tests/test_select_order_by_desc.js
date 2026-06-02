@@ -11,11 +11,9 @@ export default async function select(
     type: "GET",
     select: "*",
     table: "users",
-    where: {
-      "field": "age",
-      "operator": "not in",
-      "value": [25, 30, 35]
-    }
+    order_by: [
+      "$desc.age"
+    ]
   };
 
   const built_query = await build_query(

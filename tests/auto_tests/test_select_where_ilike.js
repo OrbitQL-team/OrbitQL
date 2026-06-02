@@ -9,12 +9,26 @@ export default async function select(
 ) {
   const query = {
     type: "GET",
-    select: "*",
+    select: "name",
     table: "users",
     where: {
-      "field": "age",
-      "operator": "not in",
-      "value": [25, 30, 35]
+      and: [
+        {
+          field: 'have_access',
+          op: '!=',
+          value: 1
+        },
+        {
+          field: 'email',
+          op: 'ILIKE',
+          value: '%example.com%'
+        },
+        {
+          field: 'email',
+          op: 'NOT ILIKE',
+          value: '%@TEST.TEST%'
+        },
+      ]
     }
   };
 

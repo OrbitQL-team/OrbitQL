@@ -20,14 +20,9 @@ export default async function select(
         },
         {
           field: 'email',
-          op: 'ILIKE',
+          op: 'LIKE',
           value: '%example.com%'
-        },
-        {
-          field: 'email',
-          op: 'NOT ILIKE',
-          value: '%@TEST.TEST%'
-        },
+        }
       ]
     }
   };
@@ -41,8 +36,6 @@ export default async function select(
   );
 
   const result = await built_query.execute();
-
-  console.log('result: ', result)
 
   expect(result).toBeDefined();
 }

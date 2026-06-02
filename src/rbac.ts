@@ -184,6 +184,8 @@ export function resolve_fields(
             ? entry.split(".")
             : [defaultTable, entry];
 
+        console.log(table)
+
         const tableStruct = structure[table];
         if (!tableStruct) {
             throw new Error(`Unknown table '${table}'`);

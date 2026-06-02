@@ -128,7 +128,7 @@ async function exists_condition(db: Database, cond: ExistsCondition, tableMap: R
   if(sub_query) {
     subTable = tableMap[sub_query.from];
     if (!subTable) throw new Error(`Table '${sub_query.from}' not found`);
-    fields = resolve_fields(structure, sub_query.select, 'GET', role, subTable, tableMap);
+    fields = resolve_fields(structure, sub_query.select, 'GET', role, sub_query.from, tableMap);
     fields = alias_selected_fields(fields);
     if(!fields) throw new Error(`Inner fields not found`);
     subWhere = sub_query.where
@@ -150,7 +150,7 @@ async function not_exists_condition(db: Database, cond: NotExistsCondition, tabl
   if(sub_query) {
     subTable = tableMap[sub_query.from];
     if (!subTable) throw new Error(`Table '${sub_query.from}' not found`);
-    fields = resolve_fields(structure, sub_query.select, 'GET', role, subTable, tableMap);
+    fields = resolve_fields(structure, sub_query.select, 'GET', role, sub_query.from, tableMap);
     fields = alias_selected_fields(fields);
     if(!fields) throw new Error(`Inner fields not found`);
     subWhere = sub_query.where
@@ -168,7 +168,7 @@ async function in_condition(db: Database, left:any, right: any, tableMap: Record
   if (right && typeof right === "object" && "select" in right) {
     const subTable = tableMap[right.from];
     if (!subTable) throw new Error(`Table '${right.from}' not found`);
-    let fields = resolve_fields(structure, right.select, 'GET', role, subTable, tableMap);
+    let fields = resolve_fields(structure, right.select, 'GET', role, right.from, tableMap);
     fields = alias_selected_fields(fields);
     if(!fields) throw new Error(`Inner fields not found`);
     const subWhere = right.where
@@ -189,7 +189,7 @@ async function not_in_condition(db: Database, left:any, right: any, tableMap: Re
   if (right && typeof right === "object" && "select" in right) {
       const subTable = tableMap[right.from];
       if (!subTable) throw new Error(`Table '${right.from}' not found`);
-      let fields = resolve_fields(structure, right.select, 'GET', role, subTable, tableMap);
+      let fields = resolve_fields(structure, right.select, 'GET', role, right.from, tableMap);
       fields = alias_selected_fields(fields);
       if(!fields) throw new Error(`Inner fields not found`);
       const subWhere = right.where
