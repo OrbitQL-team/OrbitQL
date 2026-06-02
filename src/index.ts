@@ -75,7 +75,7 @@ export default async function build_query(db: Database, query: StructuredQuery, 
 
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
     const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, default_table)
-    if(!has_been_accepted) throw new Error("Not allowed")
+    if(!has_been_accepted) throw new Error("Not allowed or Empty")
   }
 
   let limit = null

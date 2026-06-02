@@ -9,22 +9,17 @@ export default async function select(
 ) {
   const query = {
     type: "GET",
-    select: "name",
+    select: [
+      "$count.id",
+      "$count_distinct.id",
+      "$avg.age",
+      "$avg_distinct.age",
+      "$max.age",
+      "$min.age",
+      "$sum.age",
+      "$sum_distinct.age",
+    ],
     table: "users",
-    where: {
-      and: [
-        {
-          field: 'have_access',
-          op: '!=',
-          value: 1
-        },
-        {
-          field: 'email',
-          op: 'LIKE',
-          value: '%example.com%'
-        },
-      ]
-    }
   };
 
   const built_query = await build_query(
