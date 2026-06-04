@@ -1,12 +1,45 @@
-import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, PhaseTypes } from "./types.ts";
 import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
 
 /* -------------------------------------------------------------------------- */
+/*                               REQUEST HANDLER                              */
+/* -------------------------------------------------------------------------- */
+
+export default async function compile(
+  db: Database | Transaction,
+  request: Request,
+  user: any,
+  role: string,
+  structure: Structure,
+  options: BuildWhereOptions = {}
+) {
+  if ("phases" in request && request.phases) {
+    const parts = await Promise.all(
+      request.phases.map(async (phase) => {
+        return build_batch(db, phase.queries, user, role, structure, phase.mode,options);
+      })
+    );
+
+    return parts;
+  }
+
+  return build_query(db, request as StructuredQuery, user, role, structure, options);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                QUERY BATCHER                               */
+/* -------------------------------------------------------------------------- */
+
+export async function build_batch(db: Database | Transaction, query: StructuredQuery[], user: any, role:string, structure: Structure, mode: PhaseTypes, options:BuildWhereOptions = {}) {
+  
+}
+
+/* -------------------------------------------------------------------------- */
 /*                              BUILDER FOR QUERY                             */
 /* -------------------------------------------------------------------------- */
-export default async function build_query(db: Database, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
+export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
   /* -------------------------------------------------------------------------- */
   /*                              TABLE RETRIEVING                              */
   /* -------------------------------------------------------------------------- */
