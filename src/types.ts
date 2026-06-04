@@ -194,7 +194,7 @@ export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 export type StructuredQuery = {
   table: keyof Structure;
-  type: "GET" | "PUT" | "DELETE" | "POST";
+  type: EndpointType;
   select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
@@ -202,11 +202,10 @@ export type StructuredQuery = {
   group_by?: string[] | string;
   order_by?: string[] | string;
   returning?: string[] | string;
+  limit?: number;
   
   /* Queries executed after this one */
   after?: StructuredQuery[];
-
-  [key: string]: any;
 };
 
 export type Join = {
