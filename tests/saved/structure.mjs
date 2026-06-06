@@ -95,36 +95,36 @@ export default {
           "allowed": "*",
           "returning": true
         },
-        // "triggers": [
-        //   {
-        //     "type": "BEFORE",
-        //     "level": "ROW",
-        //     "query": {
-        //       "set": {
-        //         "field": "name",
-        //         "when": {
-        //           "field": "name",
-        //           "op": "IS NULL"
-        //         },
-        //         "value": "wela"
-        //       }
-        //     }
-        //   },
-        //   {
-        //     "type": "BEFORE",
-        //     "level": "ROW",
-        //     "query": {
-        //       "set": {
-        //         "field": "surname",
-        //         "when": {
-        //           "field": "surname",
-        //           "op": "IS NULL"
-        //         },
-        //         "value": "wela"
-        //       }
-        //     }
-        //   }
-        // ]
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          },
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "surname",
+                "when": {
+                  "field": "surname",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          }
+        ]
       },
       {
         "type": "DELETE",

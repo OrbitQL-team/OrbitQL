@@ -34,7 +34,18 @@ export default async function compile(
         const results = [];
 
         for (const part of parts) {
-          results.push(await part.execute());
+          try {
+            const res = await part.execute();
+            results.push({
+              status: "success",
+              value: res
+            });
+          } catch (err) {
+            results.push({
+              status: "error",
+              error: err
+            });
+          }
         }
 
         return results;
