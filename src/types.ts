@@ -1,38 +1,39 @@
 /* -------------------------------------------------------------------------- */
 /*                                   IMPORTS                                  */
 /* -------------------------------------------------------------------------- */
-import { GelDatabase } from "drizzle-orm/gel-core";
-import { MySql2Database } from "drizzle-orm/mysql2";
-import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase } from "drizzle-orm/pg-core";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
-import { LibSQLDatabase } from "drizzle-orm/libsql";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { GelDatabase, GelTransaction } from "drizzle-orm/gel-core";
+import { MySql2Database, MySql2Transaction } from "drizzle-orm/mysql2";
+import { PlanetScaleDatabase, PlanetScaleTransaction } from "drizzle-orm/planetscale-serverless";
+import { PgDatabase, PgTransaction } from "drizzle-orm/pg-core";
+import { NodePgDatabase, NodePgTransaction } from "drizzle-orm/node-postgres";
+import { VercelPgDatabase, VercelPgTransaction } from "drizzle-orm/vercel-postgres";
+import { LibSQLDatabase, LibSQLTransaction } from "drizzle-orm/libsql";
+import { BetterSQLite3Database, BetterSQLiteTransaction } from "drizzle-orm/better-sqlite3";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
-import { NeonDatabase } from "drizzle-orm/neon-serverless";
+import { NeonDatabase, NeonTransaction } from "drizzle-orm/neon-serverless";
 import { GelJsDatabase } from "drizzle-orm/gel";
 import { AnyD1Database, DrizzleD1Database } from "drizzle-orm/d1";
-import { SQLJsDatabase } from "drizzle-orm/sql-js";
-import { PgliteDatabase } from "drizzle-orm/pglite";
+import { SQLJsDatabase, SQLJsTransaction } from "drizzle-orm/sql-js";
+import { PgliteDatabase, PgliteTransaction } from "drizzle-orm/pglite";
 import { XataHttpDatabase } from "drizzle-orm/xata-http";
 import { NeonHttpDatabase } from "drizzle-orm/neon-http";
-import { OPSQLiteDatabase } from "drizzle-orm/op-sqlite";
+import { OPSQLiteDatabase, OPSQLiteTransaction } from "drizzle-orm/op-sqlite";
 import { PgRemoteDatabase } from "drizzle-orm/pg-proxy";
 import { PrismaPgDatabase } from "drizzle-orm/prisma/pg";
 import { DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 import { SingleStoreRemoteDatabase } from "drizzle-orm/singlestore-proxy";
 import { SingleStoreDatabase } from "drizzle-orm/singlestore";
-import { TiDBServerlessDatabase } from "drizzle-orm/tidb-serverless";
+import { TiDBServerlessDatabase, TiDBServerlessTransaction } from "drizzle-orm/tidb-serverless";
 import { SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 import { PrismaSQLiteDatabase } from "drizzle-orm/prisma/sqlite";
-import { AwsDataApiPgDatabase } from "drizzle-orm/aws-data-api/pg";
+import { AwsDataApiPgDatabase, AwsDataApiTransaction } from "drizzle-orm/aws-data-api/pg";
 import { PrismaMySqlDatabase } from "drizzle-orm/prisma/mysql";
 import { MySqlRemoteDatabase } from "drizzle-orm/mysql-proxy";
-import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { PostgresJsDatabase, PostgresJsTransaction } from "drizzle-orm/postgres-js";
 import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
-import { ExpoSQLiteDatabase } from "drizzle-orm/expo-sqlite";
-import { MySqlDatabase } from "drizzle-orm/mysql-core";
+import { ExpoSQLiteDatabase, ExpoSQLiteTransaction } from "drizzle-orm/expo-sqlite";
+import { MySqlDatabase, MySqlTransaction } from "drizzle-orm/mysql-core";
+import { SingleStoreTransaction } from "drizzle-orm/singlestore-core";
 
 /* -------------------------------------------------------------------------- */
 /*                               DATABASE TYPES                               */
@@ -73,6 +74,27 @@ export type Database =
   | ExpoSQLiteDatabase
   | BunSQLiteDatabase;
 
+export type Transaction =
+  | GelTransaction<any, any, any>
+  | MySql2Transaction<any, any>
+  | PlanetScaleTransaction<any, any>
+  | PgTransaction<any, any>
+  | NodePgTransaction<any, any>
+  | NeonTransaction<any, any>
+  | VercelPgTransaction<any, any>
+  | LibSQLTransaction<any, any>
+  | BetterSQLiteTransaction<any, any>
+  | MySqlTransaction<any, any>
+  | SQLJsTransaction<any, any>
+  | PgliteTransaction<any, any>
+  | OPSQLiteTransaction<any, any>
+  | SingleStoreTransaction<any, any>
+  | TiDBServerlessTransaction<any, any>
+  | AwsDataApiTransaction<any, any>
+  | SingleStoreTransaction<any, any>
+  | PostgresJsTransaction<any, any>
+  | ExpoSQLiteTransaction<any, any>
+
 /* -------------------------------------------------------------------------- */
 /*                                  STRUCTURE                                 */
 /* -------------------------------------------------------------------------- */
@@ -85,13 +107,11 @@ export type TableStructure = {
 };
 
 export const BuildWhereOptionsDefaults:BuildWhereOptions = {
-  disable_triggers: false,
-  after: false
+  disable_triggers: false
 }
 
 export type BuildWhereOptions = {
-  disable_triggers?: boolean,
-  after?: number | boolean
+  disable_triggers?: boolean
 }
 
 export type Set_Value = {
@@ -189,6 +209,23 @@ export const SAFE_OPERATORS = [
 export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 /* -------------------------------------------------------------------------- */
+/*                                   REQUEST                                  */
+/* -------------------------------------------------------------------------- */
+
+export type PhaseTypes = "TRANSACTION" | "QUERY"
+
+export type QueryPhase = {
+  mode: PhaseTypes;
+  queries: StructuredQuery[];
+};
+
+export type Request =
+  | StructuredQuery
+  | {
+      phases: QueryPhase[];
+    };
+
+/* -------------------------------------------------------------------------- */
 /*                              QUERY/CONDITIONS                              */
 /* -------------------------------------------------------------------------- */
 
@@ -203,9 +240,6 @@ export type StructuredQuery = {
   order_by?: string[] | string;
   returning?: string[] | string;
   limit?: number;
-  
-  /* Queries executed after this one */
-  after?: StructuredQuery[];
 };
 
 export type Join = {

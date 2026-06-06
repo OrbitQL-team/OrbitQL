@@ -1,12 +1,145 @@
-import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, QueryPhase } from "./types.ts";
 import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
 
 /* -------------------------------------------------------------------------- */
+/*                               REQUEST HANDLER                              */
+/* -------------------------------------------------------------------------- */
+
+export default async function compile(
+  db: Database | Transaction,
+  request: Request,
+  user: any,
+  role: string,
+  structure: Structure,
+  options: BuildWhereOptions = {}
+) {
+  if ("phases" in request && request.phases) {
+    const parts = await Promise.all(
+      request.phases.map((phase) =>
+        build_batch(
+          db,
+          phase,
+          user,
+          role,
+          structure,
+          options
+        )
+      )
+    );
+
+    return {
+      async execute() {
+        const results = [];
+
+        for (const part of parts) {
+          try {
+            const res = await part.execute();
+            results.push({
+              status: "success",
+              value: res
+            });
+          } catch (err) {
+            results.push({
+              status: "error",
+              error: err
+            });
+          }
+        }
+
+        return results;
+      }
+    };
+  }
+
+  return build_query(
+    db,
+    request as StructuredQuery,
+    user,
+    role,
+    structure,
+    options
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*                                QUERY BATCHER                               */
+/* -------------------------------------------------------------------------- */
+
+export async function build_batch(
+  db: Database | Transaction,
+  phase: QueryPhase,
+  user: any,
+  role: string,
+  structure: Structure,
+  options: BuildWhereOptions = {}
+) {
+  const plans = await Promise.all(
+    phase.queries.map((query) =>
+      build_query(
+        db,
+        query,
+        user,
+        role,
+        structure,
+        options
+      )
+    )
+  );
+
+  switch (phase.mode.toUpperCase()) {
+    case "QUERY": {
+      return {
+        async execute() {
+          const results = [];
+
+          for (const plan of plans) {
+            results.push(await plan.execute());
+          }
+
+          return results;
+        },
+      };
+    }
+
+    case "TRANSACTION": {
+      return {
+        async execute() {
+          return await db.transaction(async (tx: Transaction) => {
+            const results = [];
+
+            for (const query of phase.queries) {
+              const plan = await build_query(
+                tx,
+                query,
+                user,
+                role,
+                structure,
+                options
+              );
+
+              results.push(await plan.execute());
+            }
+
+            return results;
+          });
+        },
+      };
+    }
+
+    default: {
+      throw new Error(
+        `Unsupported phase mode: ${phase.mode}`
+      );
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /*                              BUILDER FOR QUERY                             */
 /* -------------------------------------------------------------------------- */
-export default async function build_query(db: Database, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
+export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
   /* -------------------------------------------------------------------------- */
   /*                              TABLE RETRIEVING                              */
   /* -------------------------------------------------------------------------- */
