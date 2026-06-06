@@ -107,13 +107,11 @@ export type TableStructure = {
 };
 
 export const BuildWhereOptionsDefaults:BuildWhereOptions = {
-  disable_triggers: false,
-  after: false
+  disable_triggers: false
 }
 
 export type BuildWhereOptions = {
-  disable_triggers?: boolean,
-  after?: number | boolean
+  disable_triggers?: boolean
 }
 
 export type Set_Value = {
@@ -242,9 +240,6 @@ export type StructuredQuery = {
   order_by?: string[] | string;
   returning?: string[] | string;
   limit?: number;
-  
-  /* Queries executed after this one */
-  after?: StructuredQuery[];
 };
 
 export type Join = {

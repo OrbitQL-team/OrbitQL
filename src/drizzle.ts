@@ -383,43 +383,6 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
 }
 
 /* -------------------------------------------------------------------------- */
-/*                            AFTER QUERIES BUILDER                           */
-/* -------------------------------------------------------------------------- */
-
-export async function run_after(db:Database | Transaction, options:BuildWhereOptions, query:StructuredQuery, user:any, others:any, role:string, structure: Structure) {
-  if(!options.after) return others
-  if(query.after && Array.isArray(query.after) && query.after.length > 0) {
-    let afterQueries:any[] = []
-    const spliced_queries = typeof options.after == 'number' ? query.after.slice(0, options.after) : query.after;
-    for(let after_query of spliced_queries) {
-      let returned_query: { execute: () => Promise<any> };
-      try {
-        // await here because build_query returns a Promise
-        returned_query = await build_query(db, after_query, user, role, structure, {
-          after: false,
-          ...options
-        });
-      } catch (e) {
-        console.error("Error building query:", e);
-        continue;
-      }
-
-      // Execute the query
-      let response: any;
-      try {
-        response = await returned_query.execute();
-        afterQueries.push(response)
-      } catch (e) {
-        console.error("Error executing query:", e);
-        continue;
-      }
-    }
-    return { ...others, afterQueries };
-  }
-  return others
-}
-
-/* -------------------------------------------------------------------------- */
 /*                      IF CONDITION TO VALIDATE QUERIES                      */
 /* -------------------------------------------------------------------------- */
 
@@ -533,15 +496,7 @@ export async function get_method(db: Database | Transaction, options:BuildWhereO
 
   return {
     execute: async () => {
-      const sql = q.toSQL()
-      console.log(sql.sql, sql.params)
       const rows = await q.execute();
-
-      // Only run `after` if defined
-      if (query.after && query.after.length > 0) {
-        return await run_after(db, options, query, user, { rows }, role, structure);
-      }
-
       return rows;
     }
   };
@@ -585,7 +540,7 @@ export async function put_method(db: Database | Transaction, options:BuildWhereO
       
       let result = await update_query.execute();
 
-      return await run_after(db, options, query, user, result, role, structure)
+      return result;
     }
   };
 }
@@ -597,7 +552,7 @@ export async function post_method(db: Database | Transaction, options:BuildWhere
     execute: async () => {
       const post_query = db
         .insert(tableStruct.table)
-        .values(selected_data_fields)
+        .values(selected_data_fields);
 
       if(query.returning) {
         let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
@@ -616,7 +571,7 @@ export async function post_method(db: Database | Transaction, options:BuildWhere
         
       let result = await post_query.execute();
 
-      return await run_after(db, options, query, user, result, role, structure)
+      return result;
     }
   };
 }
@@ -624,7 +579,7 @@ export async function post_method(db: Database | Transaction, options:BuildWhere
 export async function delete_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, built_where:any, tableName:string, limit:any){
   return {
     execute: async () => {
-      const delete_query = db.delete(tableStruct.table)
+      const delete_query = db.delete(tableStruct.table);
       
       if(built_where) {
         delete_query.where(built_where);
@@ -656,7 +611,7 @@ export async function delete_method(db: Database | Transaction, options:BuildWhe
       
       let result = await delete_query.execute();
 
-      return await run_after(db, options, query, user, result, role, structure)
+      return result;
     }
   };
 }
@@ -684,7 +639,6 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         }else if(typeof condition.do == "object" && "type" in condition.do) {
           await build_query(db, condition.do, user, role, structure, {
             disable_triggers: true,
-            after: false,
             ...options
           })
         }
@@ -694,7 +648,6 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         }else if(typeof condition.else == "object" && "type" in condition.else) {
           await build_query(db, condition.else, user, role, structure, {
             disable_triggers: true,
-            after: false,
             ...options
           })
         }
@@ -758,7 +711,6 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
     if("type" in trigger.query) {
       await build_query(db, trigger.query, user, role, structure, {
         disable_triggers: true,
-        after: false,
         ...options
       })
     }

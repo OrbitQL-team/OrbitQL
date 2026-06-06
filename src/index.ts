@@ -1,4 +1,4 @@
-import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, PhaseTypes } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, QueryPhase } from "./types.ts";
 import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
@@ -17,23 +17,112 @@ export default async function compile(
 ) {
   if ("phases" in request && request.phases) {
     const parts = await Promise.all(
-      request.phases.map(async (phase) => {
-        return build_batch(db, phase.queries, user, role, structure, phase.mode,options);
-      })
+      request.phases.map((phase) =>
+        build_batch(
+          db,
+          phase,
+          user,
+          role,
+          structure,
+          options
+        )
+      )
     );
 
-    return parts;
+    return {
+      async execute() {
+        const results = [];
+
+        for (const part of parts) {
+          results.push(await part.execute());
+        }
+
+        return results;
+      }
+    };
   }
 
-  return build_query(db, request as StructuredQuery, user, role, structure, options);
+  return build_query(
+    db,
+    request as StructuredQuery,
+    user,
+    role,
+    structure,
+    options
+  );
 }
 
 /* -------------------------------------------------------------------------- */
 /*                                QUERY BATCHER                               */
 /* -------------------------------------------------------------------------- */
 
-export async function build_batch(db: Database | Transaction, query: StructuredQuery[], user: any, role:string, structure: Structure, mode: PhaseTypes, options:BuildWhereOptions = {}) {
-  
+export async function build_batch(
+  db: Database | Transaction,
+  phase: QueryPhase,
+  user: any,
+  role: string,
+  structure: Structure,
+  options: BuildWhereOptions = {}
+) {
+  const plans = await Promise.all(
+    phase.queries.map((query) =>
+      build_query(
+        db,
+        query,
+        user,
+        role,
+        structure,
+        options
+      )
+    )
+  );
+
+  switch (phase.mode.toUpperCase()) {
+    case "QUERY": {
+      return {
+        async execute() {
+          const results = [];
+
+          for (const plan of plans) {
+            results.push(await plan.execute());
+          }
+
+          return results;
+        },
+      };
+    }
+
+    case "TRANSACTION": {
+      return {
+        async execute() {
+          return await db.transaction(async (tx: Transaction) => {
+            const results = [];
+
+            for (const query of phase.queries) {
+              const plan = await build_query(
+                tx,
+                query,
+                user,
+                role,
+                structure,
+                options
+              );
+
+              results.push(await plan.execute());
+            }
+
+            return results;
+          });
+        },
+      };
+    }
+
+    default: {
+      throw new Error(
+        `Unsupported phase mode: ${phase.mode}`
+      );
+    }
+  }
 }
 
 /* -------------------------------------------------------------------------- */

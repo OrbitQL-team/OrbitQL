@@ -1,14 +1,36 @@
 export default {
-  type: "GET",
-  select: [
-    "$count.id",
-    "$count_distinct.id",
-    "$avg.age",
-    "$avg_distinct.age",
-    "$max.age",
-    "$min.age",
-    "$sum.age",
-    "$sum_distinct.age",
-  ],
-  table: "users",
+  phases: [
+     {
+      mode: 'query',
+      queries: [
+        {
+          type: "PUT",
+          data: {
+            "name": "prova",
+            "surname": "prova",
+            "email": "prova@prova.prova",
+            "have_access": 1,
+            "age": 18,
+          },
+          table: "users",
+          where: {
+            field: "id",
+            op: "=",
+            value: 1
+          }
+        },
+        {
+          type: "POST",
+          data: {
+            "name": "prova",
+            "surname": null,
+            "email": "prova@prova.prova",
+            "have_access": 1,
+            "age": 18,
+          },
+          table: "users",
+        }
+      ]
+     }
+  ]
 };
