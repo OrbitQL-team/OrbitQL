@@ -2,7 +2,7 @@
 
 ## Policy-Driven SQL Handler
 
-**Polaris** is a declarative, database-level authorization and query engine built on **Node.js**. It combines:
+**Polaris** is a declarative, database-level authorization and query engine built on **TypeScript**. It combines:
 
 * Role-based access control
 * Field-level permissions
