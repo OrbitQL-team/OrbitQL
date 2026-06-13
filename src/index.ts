@@ -1,4 +1,4 @@
-import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, QueryPhase } from "./types.ts";
+import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, QueryPhase, CompileResult } from "./types.ts";
 import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.ts";
 import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
 import { getTableName } from "drizzle-orm";
@@ -14,7 +14,7 @@ export default async function compile(
   role: string,
   structure: Structure,
   options: BuildWhereOptions = {}
-) {
+): Promise<CompileResult<any>> {
   if ("phases" in request && request.phases) {
     const parts = await Promise.all(
       request.phases.map((phase) =>
@@ -31,29 +31,28 @@ export default async function compile(
 
     return {
       async execute() {
-        const results = [];
+        const results: any[] = [];
+        const errors: any[] = [];
 
         for (const part of parts) {
           try {
             const res = await part.execute();
-            results.push({
-              status: "success",
-              value: res
-            });
+            results.push(res);
           } catch (err) {
-            results.push({
-              status: "error",
-              error: err
-            });
+            errors.push(err);
           }
         }
 
-        return results;
+        return {
+          ok: errors.length === 0,
+          data: results,
+          error: errors.length ? errors : undefined
+        };
       }
     };
   }
 
-  return build_query(
+  const single = await build_query(
     db,
     request as StructuredQuery,
     user,
@@ -61,6 +60,24 @@ export default async function compile(
     structure,
     options
   );
+
+  return {
+    async execute() {
+      try {
+        const res = await single.execute();
+
+        return {
+          ok: true,
+          data: res
+        };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err
+        };
+      }
+    }
+  };
 }
 
 /* -------------------------------------------------------------------------- */

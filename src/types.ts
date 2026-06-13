@@ -209,6 +209,22 @@ export const SAFE_OPERATORS = [
 export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 /* -------------------------------------------------------------------------- */
+/*                                   RESULT                                   */
+/* -------------------------------------------------------------------------- */
+
+export type CompileExecutionResult<T = any> = {
+  ok: boolean;
+  data?: T[];
+  error?: unknown[] | unknown;
+};
+
+export type ExecuteFunction<T = any> = () => Promise<CompileExecutionResult<T>>;
+
+export type CompileResult<T = any> = {
+  execute: ExecuteFunction<T>;
+};
+
+/* -------------------------------------------------------------------------- */
 /*                                   REQUEST                                  */
 /* -------------------------------------------------------------------------- */
 
