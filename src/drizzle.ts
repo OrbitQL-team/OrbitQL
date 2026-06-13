@@ -13,7 +13,7 @@ import {
   notInArray,
   notBetween
 } from "drizzle-orm";
-import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, IfCondition, ExistsCondition, NotExistsCondition, Returning, Transaction } from "./types.ts";
+import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, IfCondition, ExistsCondition, NotExistsCondition, Returning, Transaction, SetCondition } from "./types.ts";
 import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolve_group_by_fields, resolve_order_by_fields, resolve_returning_fields, resolveCustomValue, toArray } from "./rbac";
 import { build_query } from "./index.ts";
 
@@ -467,7 +467,7 @@ export function is_allowed_empty(allowed: FieldPermission) {
 /*                           ENDPOINT QUERY METHODS                           */
 /* -------------------------------------------------------------------------- */
 
-export async function get_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+export async function get_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any> | undefined, built_where:any, tableName:string, limit:any) {
   const q = db.select(selected_data_fields).from(tableStruct.table);
 
   if (query.join) await buildJoin(db, q, query.join, tableMap, user, role, structure, query, tableStruct.table);
@@ -620,7 +620,7 @@ export async function delete_method(db: Database | Transaction, options:BuildWhe
 /*                               TRIGGERS RUNNER                              */
 /* -------------------------------------------------------------------------- */
 
-export async function run_triggers(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false) {
+export async function run_triggers(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false, before_values?:any | any[], after_values?:any | any[]) {
   const timing_filtered_triggers = triggers.filter((trigger)=>{
     if(after && trigger.type.toUpperCase() == 'AFTER') {
       return true
@@ -659,6 +659,57 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         continue
       }
 
+      function set_value(
+        set: SetCondition,
+        where: WhereCondition,
+        table_name: string,
+        i?: number,
+        custom_value?: any
+      ) {
+        const value = resolveCustomValue(
+          set.value,
+          user,
+          query,
+          tableMap,
+          table_name,
+          custom_value
+        );
+
+        let fallback_value;
+
+        if ("else_value" in set) {
+          fallback_value = resolveCustomValue(
+            set.else_value,
+            user,
+            query,
+            tableMap,
+            table_name,
+            custom_value
+          );
+        } else {
+          const existing =
+            typeof i === "number"
+              ? selected_data_fields?.[i]?.[set.field]
+              : selected_data_fields?.[set.field];
+
+          fallback_value = existing ?? sql`COALESCE(${value}, '')`;
+        }
+
+        console.log("SETTING:", set.field, "ROW:", i ?? "single");
+
+        const target =
+          typeof i === "number"
+            ? selected_data_fields[i]
+            : selected_data_fields;
+
+        target[set.field] = sql`
+          CASE 
+            WHEN ${where} THEN ${value}
+            ELSE ${fallback_value}
+          END
+        `;
+      }
+
       const set = trigger.query.set
       const table_name = getTableName(tableStruct.table)
 
@@ -674,39 +725,20 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         table_name
       )
 
-      const set_value = resolveCustomValue(
-        set.value,
-        user,
-        query,
-        tableMap,
-        table_name
-      )
+      if (query.data && Array.isArray(query.data)) {
+        // ensure container exists
+        if (!Array.isArray(selected_data_fields)) {
+          selected_data_fields = [];
+        }
 
-      let fallback_value
+        for (let i = 0; i < query.data.length; i++) {
+          if (!selected_data_fields[i]) {
+            selected_data_fields[i] = {};
+          }
 
-      if ("else_value" in set) {
-        fallback_value = resolveCustomValue(
-          set.else_value,
-          user,
-          query,
-          tableMap,
-          table_name
-        )
-      } else if (selected_data_fields[set.field]) {
-        // preserve previous transformation safely
-        fallback_value = selected_data_fields[set.field]
-      } else {
-        fallback_value = sql`COALESCE(${set_value}, '')`
-      }
-
-      console.log('SETTING: ', set.field)
-
-      selected_data_fields[set.field] = sql`
-        CASE 
-          WHEN ${where} THEN ${set_value}
-          ELSE ${fallback_value}
-        END
-      `
+          set_value(set, where, table_name, i, query.data[i]);
+        }
+      }else set_value(set, where, table_name);
     }
     if("type" in trigger.query) {
       await build_query(db, trigger.query, user, role, structure, {

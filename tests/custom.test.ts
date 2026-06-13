@@ -59,8 +59,6 @@ it("should measure build and execute performance", async () => {
 
   const buildTime = performance.now() - buildStart;
 
-  console.log("BUILDED");
-
   // Measure execution time
   const execStart = performance.now();
 

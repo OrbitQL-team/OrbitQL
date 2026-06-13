@@ -114,19 +114,21 @@ export type BuildWhereOptions = {
   disable_triggers?: boolean
 }
 
-export type Set_Value = {
-  set: {
-    field: string;
-    when: WhereCondition | SubqueryCondition;
-    value: any;
-    else_value?: any;
-  }
+export type SetCondition = {
+  field: string;
+  when: WhereCondition | SubqueryCondition;
+  value: any;
+  else_value?: any;
+}
+
+export type SetValue = {
+  set: SetCondition
 }
 
 export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 export type TriggerStructure = {
   type: "BEFORE" | "AFTER";
-  query: StructuredQuery & IfCondition & Set_Value;
+  query: StructuredQuery & IfCondition & SetValue;
 }
 
 // Endpoint structure

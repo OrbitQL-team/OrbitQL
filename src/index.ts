@@ -260,48 +260,62 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
 
   let selected_data_fields: Record<string, any> = { ...user_select_data_fields };
 
+  if (!Object.keys(selected_data_fields).length) {
+    throw new Error("No allowed fields");
+  }
+
   /* -------------------------------------------------------------------------- */
   /*                               BEFORE TRIGGERS                              */
   /* -------------------------------------------------------------------------- */
 
   if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
 
-  if (!Object.keys(selected_data_fields).length) {
-    throw new Error("No allowed fields");
+  let before:any = null
+  let after:any = null
+
+  result = {
+    execute: async () => {
+      return await db.transaction(async (tx: Transaction)=>{
+        /* -------------------------------------------------------------------------- */
+        /*                           RUN QUERY BASED ON TYPE                          */
+        /* -------------------------------------------------------------------------- */
+        
+        let result
+
+        switch(query_type.toUpperCase()) {
+          case 'GET': {
+            result = await (await get_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)).execute()
+            break;
+          }
+          case 'PUT': {
+            before = await (await get_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)).execute()
+            result = await (await put_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)).execute()
+            break;
+          }
+          case 'POST': {
+            result = await (await post_method(tx, options, query, user, structure, role, tableStruct, tableMap, selected_data_fields, tableName)).execute()
+            break;
+          }
+          case 'DELETE': {
+            before = await (await get_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)).execute()
+            result = await (await delete_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)).execute()
+            break;
+          }
+          default: {
+            throw new Error("Invalid operation");
+          }
+        }
+
+        return result
+      })
+    }
   }
-
-  /* -------------------------------------------------------------------------- */
-  /*                           RUN QUERY BASED ON TYPE                          */
-  /* -------------------------------------------------------------------------- */
-
-  switch(query_type.toUpperCase()) {
-    case 'GET': {
-      result = await get_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
-      break;
-    }
-    case 'PUT': {
-      result = await put_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
-      break;
-    }
-    case 'POST': {
-      result = await post_method(db, options, query, user, structure, role, tableStruct, tableMap, selected_data_fields, tableName)
-      break;
-    }
-    case 'DELETE': {
-      result = await delete_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
-      break;
-    }
-    default: {
-      throw new Error("Invalid operation");
-    }
-  }
-
 
   /* -------------------------------------------------------------------------- */
   /*                               AFTER TRIGGERS                               */
   /* -------------------------------------------------------------------------- */
 
-  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
+  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false, before, after)
 
   return result
 }
