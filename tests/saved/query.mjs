@@ -68,7 +68,102 @@
 // };
 
 export default {
-  type: "get",
-  select: 'name',
-  table: "users"
+  type: "post",
+  data: [
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+    {
+      name: 'test',
+    },
+  ],
+  returning: 'name',
+  table: "test"
 };

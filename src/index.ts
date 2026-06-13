@@ -284,21 +284,21 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
 
         switch(query_type.toUpperCase()) {
           case 'GET': {
-            result = await (await get_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)).execute()
+            result = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
             break;
           }
           case 'PUT': {
-            before = await (await get_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)).execute()
-            result = await (await put_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)).execute()
+            before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            result = await put_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
             break;
           }
           case 'POST': {
-            result = await (await post_method(tx, options, query, user, structure, role, tableStruct, tableMap, selected_data_fields, tableName)).execute()
+            result = await post_method(tx, query, structure, role, tableStruct, tableMap, selected_data_fields, tableName)
             break;
           }
           case 'DELETE': {
-            before = await (await get_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)).execute()
-            result = await (await delete_method(tx, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)).execute()
+            before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            result = await delete_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
             break;
           }
           default: {

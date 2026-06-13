@@ -1,4 +1,4 @@
-import { date, int, mysqlTable, tinyint, varchar } from "drizzle-orm/mysql-core";
+import { date, int, mysqlTable, text, tinyint, varchar } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 import { decimal } from "drizzle-orm/mysql-core";
 
@@ -18,4 +18,8 @@ export const employees = mysqlTable('employees', {
     email: varchar('email', { length: 100 }).notNull(),
     hire_date: date('hire_date').notNull(),
     salary: decimal('salary', { precision: 10, scale: 2 }).notNull()
+});
+
+export const test = mysqlTable('test', {
+    name: text().notNull(),
 });

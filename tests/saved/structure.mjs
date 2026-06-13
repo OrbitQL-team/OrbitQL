@@ -272,5 +272,37 @@ export default {
       }
     ],
     "table": "users"
-  }
+  },
+  "test": {
+    "endpoints": [
+      {
+        "type": "POST",
+        "user": {
+          "allowed": [],
+          "disallowed": []
+        },
+        "admin": {
+          "allowed": "*",
+          "returning": true
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "field": "name",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          },
+        ]
+      },
+    ],
+    "table": "test"
+  },
 };

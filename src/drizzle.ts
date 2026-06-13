@@ -467,7 +467,7 @@ export function is_allowed_empty(allowed: FieldPermission) {
 /*                           ENDPOINT QUERY METHODS                           */
 /* -------------------------------------------------------------------------- */
 
-export async function get_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any> | undefined, built_where:any, tableName:string, limit:any) {
+export async function get_method(db: Database | Transaction, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any> | undefined, built_where:any, tableName:string, limit:any) {
   const q = db.select(selected_data_fields).from(tableStruct.table);
 
   if (query.join) await buildJoin(db, q, query.join, tableMap, user, role, structure, query, tableStruct.table);
@@ -494,126 +494,109 @@ export async function get_method(db: Database | Transaction, options:BuildWhereO
 
   if(limit != null) q.limit(limit)
 
-  return {
-    execute: async () => {
-      const rows = await q.execute();
-      return rows;
-    }
-  };
+  const rows = await q.execute();
+  return rows;
 }
 
-export async function put_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+export async function put_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
   if (!query.data) throw new Error("PUT requires data");
 
-  return {
-    execute: async () => {
+  const update_query = db.update(tableStruct.table).set(selected_data_fields)
+  
+  if(built_where) {
+    update_query.where(built_where)
+  }
 
-      const update_query = db.update(tableStruct.table).set(selected_data_fields)
-      
-      if(built_where) {
-        update_query.where(built_where)
-      }
+  const orderByFields =
+    resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
+    toArray(rolePermissions?.order_by) ??
+    [];
 
-      const orderByFields =
-        resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
-        toArray(rolePermissions?.order_by) ??
-        [];
+  if (orderByFields.length > 0) {
+    update_query.orderBy(...orderByFields);
+  }
 
-      if (orderByFields.length > 0) {
-        update_query.orderBy(...orderByFields);
-      }
+  if(limit != null) update_query.limit(limit)
 
-      if(limit != null) update_query.limit(limit)
-
-      if(query.returning) {
-        let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-        fields = alias_selected_fields(fields)
-        if (Object.keys(fields).length === 0) {
-          throw new Error("No valid returning fields allowed");
-        }
-        if (typeof update_query.returning === 'function') {
-          update_query.returning(fields);
-        }else if (typeof update_query.output === 'function') {
-          update_query.output(fields);
-        }
-      }
-      
-      let result = await update_query.execute();
-
-      return result;
+  if(query.returning) {
+    let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
+    fields = alias_selected_fields(fields)
+    if (Object.keys(fields).length === 0) {
+      throw new Error("No valid returning fields allowed");
     }
-  };
+    if (typeof update_query.returning === 'function') {
+      update_query.returning(fields);
+    }else if (typeof update_query.output === 'function') {
+      update_query.output(fields);
+    }
+  }
+  
+  let result = await update_query.execute();
+
+  return result;
 }
 
-export async function post_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string) {
+export async function post_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string) {
   if (!query.data) throw new Error("POST requires data");
 
-  return {
-    execute: async () => {
-      const post_query = db
-        .insert(tableStruct.table)
-        .values(selected_data_fields);
+  const post_query = db
+    .insert(tableStruct.table)
+    .values(selected_data_fields);
 
-      if(query.returning) {
-        let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-        fields = alias_selected_fields(fields)
-        if (Object.keys(fields).length === 0) {
-          throw new Error("No valid returning fields allowed");
-        }
-        if (typeof post_query.returning === 'function') {
-          post_query.returning(fields);
-        }else if (typeof post_query.$returningId === 'function') {
-          post_query.$returningId(fields);
-        }else if (typeof post_query.output === 'function') {
-          post_query.output(fields);
-        }
-      }
-        
-      let result = await post_query.execute();
-
-      return result;
+  if(query.returning) {
+    let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
+    fields = alias_selected_fields(fields)
+    if (Object.keys(fields).length === 0) {
+      throw new Error("No valid returning fields allowed");
     }
-  };
+    if (typeof post_query.returning === 'function') {
+      post_query.returning(fields);
+    }else if (typeof post_query.$returningId === 'function') {
+      post_query.$returningId(fields);
+    }else if (typeof post_query.output === 'function') {
+      post_query.output(fields);
+    }
+  }
+    
+  let result = await post_query.execute();
+
+  return result;
 }
 
-export async function delete_method(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, built_where:any, tableName:string, limit:any){
-  return {
-    execute: async () => {
-      const delete_query = db.delete(tableStruct.table);
-      
-      if(built_where) {
-        delete_query.where(built_where);
-      }
+export async function delete_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, built_where:any, tableName:string, limit:any){
+  const delete_query = db.delete(tableStruct.table);
+  
+  if(built_where) {
+    delete_query.where(built_where);
+  }
 
-      const orderByFields =
-        resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
-        toArray(rolePermissions?.order_by) ??
-        [];
+  const orderByFields =
+    resolve_order_by_fields(structure, toArray(query.order_by), query.type, role, tableName, tableMap) ??
+    toArray(rolePermissions?.order_by) ??
+    [];
 
-      if (orderByFields.length > 0) {
-        delete_query.orderBy(...orderByFields);
-      }
+  if (orderByFields.length > 0) {
+    delete_query.orderBy(...orderByFields);
+  }
 
-      if(limit != null) delete_query.limit(limit)
+  if(limit != null) delete_query.limit(limit)
 
-      if(query.returning) {
-        let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-        fields = alias_selected_fields(fields)
-        if (Object.keys(fields).length === 0) {
-          throw new Error("No valid returning fields allowed");
-        }
-        if (typeof delete_query.returning === 'function') {
-          delete_query.returning(fields);
-        }else if (typeof delete_query.output === 'function') {
-          delete_query.output(fields);
-        }
-      }
-      
-      let result = await delete_query.execute();
-
-      return result;
+  if(query.returning) {
+    let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
+    fields = alias_selected_fields(fields)
+    if (Object.keys(fields).length === 0) {
+      throw new Error("No valid returning fields allowed");
     }
-  };
+    if (typeof delete_query.returning === 'function') {
+      delete_query.returning(fields);
+    }else if (typeof delete_query.output === 'function') {
+      delete_query.output(fields);
+    }
+  }
+  
+  let result = await delete_query.execute();
+
+  return result;
 }
 
 /* -------------------------------------------------------------------------- */
