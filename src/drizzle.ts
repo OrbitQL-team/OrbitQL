@@ -542,7 +542,7 @@ export async function post_method(db: Database | Transaction, query: StructuredQ
   const post_query = db
     .insert(tableStruct.table)
     .values(selected_data_fields);
-
+    
   if(query.returning) {
     let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
     fields = alias_selected_fields(fields)
@@ -604,15 +604,7 @@ export async function delete_method(db: Database | Transaction, query: Structure
 /* -------------------------------------------------------------------------- */
 
 export async function run_triggers(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false, before_values?:any | any[], after_values?:any | any[]) {
-  const timing_filtered_triggers = triggers.filter((trigger)=>{
-    if(after && trigger.type.toUpperCase() == 'AFTER') {
-      return true
-    }else if(!after && trigger.type.toUpperCase() == 'BEFORE') {
-      return true
-    }
-    return false
-  })
-  for(let trigger of timing_filtered_triggers) {
+  for(let trigger of triggers) {
     if("if" in trigger.query) {
       const condition = trigger.query.if
       const when_condition = await if_condition(db, condition.when, tableMap, user, role, structure, query, tableStruct.table)

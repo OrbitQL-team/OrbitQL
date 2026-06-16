@@ -68,102 +68,11 @@
 // };
 
 export default {
-  type: "post",
-  data: [
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-    {
-      name: 'test',
-    },
-  ],
-  returning: 'name',
-  table: "test"
+  type: "get",
+  select: "*",
+  where: {
+    field: "name",
+    op: "IS NOT NULL"
+  },
+  table: "users"
 };

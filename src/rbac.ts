@@ -1,4 +1,4 @@
-import { avg, avgDistinct, count, countDistinct, max, min, sum, sumDistinct } from "drizzle-orm";
+import { avg, avgDistinct, count, countDistinct, max, min, sql, sum, sumDistinct } from "drizzle-orm";
 import { asc, desc } from "drizzle-orm";
 import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.ts";
 
@@ -716,7 +716,7 @@ export function stripPrefixes(input: any): any {
 // * Simply checks if value passed is undefined
 export function is_undefined(v: any) {
     if (v === undefined) throw new Error(`Undefined value not supported`);
-    return v;
+    return sql`${v}`;
 }
 
 const DATA_REF_REGEX = /^\$data\.(.+)$/;
@@ -841,7 +841,7 @@ export function resolveCustomValue(
   default_table_name: string,
   custom_value?: Record<string, any>,
 ): any {
-    if (!value) return value;
+    if (!value) return sql`${value}`;
 
     // ------------------------
     // Handle object: $col.X
@@ -886,7 +886,7 @@ export function resolveCustomValue(
     // ------------------------
     // Non-string → return as-is
     // ------------------------
-    if (typeof value !== "string") return value;
+    if (typeof value !== "string") return sql`${value}`;
 
     // ------------------------
     // $user.X
@@ -924,7 +924,7 @@ export function resolveCustomValue(
             ) {
                 val = val[part];
             } else {
-                return "";
+                return sql`${""}`;
             }
         }
 
@@ -953,7 +953,7 @@ export function resolveCustomValue(
             ) {
                 val = val[part];
             } else {
-                return "";
+                return sql`${""}`;
             }
         }
 

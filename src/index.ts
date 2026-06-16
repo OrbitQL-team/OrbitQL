@@ -265,10 +265,26 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   }
 
   /* -------------------------------------------------------------------------- */
+  /*                             TRIGGERS FILTERING                             */
+  /* -------------------------------------------------------------------------- */
+
+  const { before_triggers, after_triggers } = endpoint.triggers ? endpoint.triggers.reduce(
+    (acc, trigger) => {
+      if (trigger.type.toUpperCase() === 'AFTER') {
+        if(acc.after_triggers) acc.after_triggers.push(trigger);
+      } else if (trigger.type.toUpperCase() === 'BEFORE') {
+        if(acc.before_triggers) acc.before_triggers.push(trigger);
+      }
+      return acc;
+    },
+    { before_triggers: [] as typeof endpoint.triggers, after_triggers: [] as typeof endpoint.triggers }
+  ) : { before_triggers: null, after_triggers: null }
+
+  /* -------------------------------------------------------------------------- */
   /*                               BEFORE TRIGGERS                              */
   /* -------------------------------------------------------------------------- */
 
-  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
+  if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
 
   let before:any = null
   let after:any = null
@@ -315,7 +331,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   /*                               AFTER TRIGGERS                               */
   /* -------------------------------------------------------------------------- */
 
-  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false, before, after)
+  if(after_triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after)
 
   return result
 }

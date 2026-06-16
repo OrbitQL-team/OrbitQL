@@ -98,32 +98,18 @@ export default {
         "triggers": [
           {
             "type": "BEFORE",
-            "level": "ROW",
             "query": {
               "set": {
                 "field": "name",
                 "when": {
-                  "field": "name",
-                  "op": "IS NULL"
+                  "value": "$data.name",
+                  "op": "=",
+                  "value": "test"
                 },
                 "value": "wela"
               }
             }
           },
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "surname",
-                "when": {
-                  "field": "surname",
-                  "op": "IS NULL"
-                },
-                "value": "wela"
-              }
-            }
-          }
         ]
       },
       {
@@ -240,27 +226,13 @@ export default {
               "set": {
                 "field": "name",
                 "when": {
-                  "field": "name",
+                  "value": "$data.name",
                   "op": "IS NULL"
                 },
                 "value": "wela"
               }
             }
           },
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "surname",
-                "when": {
-                  "field": "surname",
-                  "op": "IS NULL"
-                },
-                "value": "wela"
-              }
-            }
-          }
         ]
       },
       {
@@ -293,7 +265,7 @@ export default {
               "set": {
                 "field": "name",
                 "when": {
-                  "field": "name",
+                  "value": "$data.name",
                   "op": "IS NULL"
                 },
                 "value": "wela"
