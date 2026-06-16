@@ -1,0 +1,60 @@
+{
+  "name": "@polaris/core",
+  "version": "0.0.1",
+  "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node tests/runner/test-runner.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zucchy00/Polaris.git"
+  },
+  "keywords": [
+    "api",
+    "backend",
+    "query-engine",
+    "data-api",
+    "api-builder",
+    "graphql-alternative",
+    "declarative-api",
+    "query-builder",
+    "aggregation",
+    "group-by",
+    "joins",
+    "filtering",
+    "analytics",
+    "reporting",
+    "typescript",
+    "nodejs",
+    "dsl",
+    "data-platform",
+    "headless-api",
+    "drizzle",
+    "drizzle-orm"
+  ],
+  "author": "Zucchelli Daniele",
+  "license": "SEE LICENSE IN 'LICENSE' file",
+  "bugs": {
+    "url": "https://github.com/Zucchy00/Polaris/issues"
+  },
+  "homepage": "https://github.com/Zucchy00/Polaris#readme",
+  "devDependencies": {
+    "@aws-sdk/client-rds-data": "^3.1034.0",
+    "@electric-sql/pglite": "^0.4.4",
+    "@libsql/client": "^0.17.2",
+    "@neondatabase/serverless": "^1.1.0",
+    "@types/node": "^25.5.0",
+    "@types/prompts": "^2.4.9",
+    "@vercel/postgres": "^0.10.0",
+    "better-sqlite3": "^12.9.0",
+    "drizzle-orm": "^0.45.2",
+    "mysql2": "^3.22.2",
+    "pg": "^8.20.0",
+    "postgres": "^3.4.9",
+    "prompts": "^2.4.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
