@@ -542,20 +542,15 @@ export async function post_method(db: Database | Transaction, query: StructuredQ
   const post_query = db
     .insert(tableStruct.table)
     .values(selected_data_fields);
+  
+  const after_query:any = null;
     
-  if(query.returning) {
-    let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-    fields = alias_selected_fields(fields)
-    if (Object.keys(fields).length === 0) {
-      throw new Error("No valid returning fields allowed");
-    }
-    if (typeof post_query.returning === 'function') {
-      post_query.returning(fields);
-    }else if (typeof post_query.$returningId === 'function') {
-      post_query.$returningId(fields);
-    }else if (typeof post_query.output === 'function') {
-      post_query.output(fields);
-    }
+  if (typeof post_query.returning === 'function') {
+    post_query.returning();
+  }else if (typeof post_query.$returningId === 'function') {
+    post_query.$returningId();
+  }else if (typeof post_query.output === 'function') {
+    post_query.output();
   }
     
   let result = await post_query.execute();

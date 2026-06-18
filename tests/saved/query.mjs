@@ -68,11 +68,13 @@
 // };
 
 export default {
-  type: "get",
-  select: "*",
-  where: {
-    field: "name",
-    op: "IS NOT NULL"
+  type: "POST",
+  data: {
+    "name": "prova 2",
+    "surname": "test",
+    "email": "prova@prova.prova 2",
+    "have_access": 1,
+    "age": 19,
   },
-  table: "users"
+  table: "users",
 };
