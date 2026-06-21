@@ -522,16 +522,7 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
   let after_function:any = null;
     
   if(query.returning || has_after_triggers) {
-    let fields
-    if(!has_after_triggers && query.returning) {
-      fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-      fields = alias_selected_fields(fields)
-      if (Object.keys(fields).length === 0) {
-        throw new Error("No valid returning fields allowed");
-      }
-    }else if(has_after_triggers) {
-      fields = getColumns(tableStruct.table)
-    }
+    let fields = getColumns(tableStruct.table)
     if (typeof update_query.returning === 'function') {
       update_query.returning(fields);
     }else if (typeof update_query.output === 'function') {
@@ -543,7 +534,7 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
 
   let after: any = null;
 
-  if (has_after_triggers) {
+  if (query.returning || has_after_triggers) {
     if (after_function) {
       after = await after_function(result);
     } else {
@@ -564,7 +555,7 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
       result =
         allowedFields.length === 0
           ? []
-          : result.map((row: Record<string, any>) => {
+          : after.map((row: Record<string, any>) => {
               const filtered: Record<string, any> = {};
 
               for (const field of allowedFields) {
@@ -591,28 +582,17 @@ export async function post_method(db: Database | Transaction, query: StructuredQ
   let after_function:any = null;
     
   if(query.returning || has_after_triggers) {
-    let fields
-    if(!has_after_triggers && query.returning) {
-      fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-      fields = alias_selected_fields(fields)
-      if (Object.keys(fields).length === 0) {
-        throw new Error("No valid returning fields allowed");
-      }
-    }else if(has_after_triggers) {
-      fields = getColumns(tableStruct.table)
-    }
+    let fields = getColumns(tableStruct.table)
     if (typeof post_query.returning === 'function') {
       post_query.returning(fields);
     }else if (typeof post_query.$returningId === 'function') {
       post_query.$returningId(fields);
-      if(has_after_triggers) {
-        after_function = async (result:any) => {
-          if(!result) return
-          const fieldName = Object.keys(result[0])[0];
-          const values = result.map((obj:any) => Object.values(obj)[0]);
-          const after = await db.select().from(tableStruct.table).where(inArray(tableStruct.table[fieldName], values)).execute()
-          return after
-        }
+      after_function = async (result:any) => {
+        if(!result) return
+        const fieldName = Object.keys(result[0])[0];
+        const values = result.map((obj:any) => Object.values(obj)[0]);
+        const after = await db.select().from(tableStruct.table).where(inArray(tableStruct.table[fieldName], values)).execute()
+        return after
       }
     }else if (typeof post_query.output === 'function') {
       post_query.output(fields);
@@ -623,7 +603,7 @@ export async function post_method(db: Database | Transaction, query: StructuredQ
 
   let after: any = null;
 
-  if (has_after_triggers) {
+  if (query.returning || has_after_triggers) {
     if (after_function) {
       after = await after_function(result);
     } else {
@@ -644,7 +624,7 @@ export async function post_method(db: Database | Transaction, query: StructuredQ
       result =
         allowedFields.length === 0
           ? []
-          : result.map((row: Record<string, any>) => {
+          : after.map((row: Record<string, any>) => {
               const filtered: Record<string, any> = {};
 
               for (const field of allowedFields) {
