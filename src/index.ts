@@ -280,18 +280,23 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
     { before_triggers: [] as typeof endpoint.triggers, after_triggers: [] as typeof endpoint.triggers }
   ) : { before_triggers: null, after_triggers: null }
 
-  /* -------------------------------------------------------------------------- */
-  /*                               BEFORE TRIGGERS                              */
-  /* -------------------------------------------------------------------------- */
-
-  if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
-
-  let before:any = null
-  let after:any = null
+  const has_after_triggers = !options?.disable_triggers ? (after_triggers != null ? after_triggers.length != 0 : false) : false
 
   result = {
     execute: async () => {
-      return await db.transaction(async (tx: Transaction)=>{
+      let before:any = null
+      let after:any = null
+      /* -------------------------------------------------------------------------- */
+      /*                               BEFORE TRIGGERS                              */
+      /* -------------------------------------------------------------------------- */
+
+      if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
+
+      /* -------------------------------------------------------------------------- */
+      /*                               QUERY EXECUTION                              */
+      /* -------------------------------------------------------------------------- */
+
+      let result = await db.transaction(async (tx: Transaction)=>{
         /* -------------------------------------------------------------------------- */
         /*                           RUN QUERY BASED ON TYPE                          */
         /* -------------------------------------------------------------------------- */
@@ -304,16 +309,20 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
             break;
           }
           case 'PUT': {
-            before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
-            result = await put_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
+            if(has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            const res = await put_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit, has_after_triggers)
+            result = res.result;
+            after = res.after;
             break;
           }
           case 'POST': {
-            result = await post_method(tx, query, structure, role, tableStruct, tableMap, selected_data_fields, tableName)
+            const res = await post_method(tx, query, structure, role, tableStruct, tableMap, selected_data_fields, tableName, has_after_triggers)
+            result = res.result;
+            after = res.after;
             break;
           }
           case 'DELETE': {
-            before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            if(has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
             result = await delete_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
             break;
           }
@@ -324,14 +333,15 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
 
         return result
       })
+
+      /* -------------------------------------------------------------------------- */
+      /*                               AFTER TRIGGERS                               */
+      /* -------------------------------------------------------------------------- */
+      if(after_triggers && has_after_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after)
+    
+      return result
     }
   }
-
-  /* -------------------------------------------------------------------------- */
-  /*                               AFTER TRIGGERS                               */
-  /* -------------------------------------------------------------------------- */
-
-  if(after_triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after)
 
   return result
 }

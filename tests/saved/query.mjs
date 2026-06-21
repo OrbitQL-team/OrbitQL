@@ -77,4 +77,5 @@ export default {
     "age": 19,
   },
   table: "users",
+  returning: "id"
 };

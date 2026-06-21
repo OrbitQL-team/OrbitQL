@@ -314,7 +314,7 @@ export function resolve_returning_fields(
                     );
                 }
 
-                allowedFields[`${table}.${fieldName}`] = fieldRef;
+                allowedFields[fieldName] = fieldRef;
             };
 
             if (field === "*") {
@@ -349,7 +349,7 @@ export function resolve_returning_fields(
                 );
             }
 
-            allowedFields[`${table}.${fieldName}`] = fieldRef;
+            allowedFields[fieldName] = fieldRef;
         };
 
         if (field === "*") {

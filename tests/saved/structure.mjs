@@ -110,6 +110,18 @@ export default {
               }
             }
           },
+          {
+            "type": "AFTER",
+            "query": {
+              "if": {
+                "when": {
+                  "value": "$data.name",
+                  "op": "=",
+                  "value": "test"
+                },
+              }
+            }
+          },
         ]
       },
       {

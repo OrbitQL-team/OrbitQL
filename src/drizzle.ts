@@ -11,7 +11,8 @@ import {
   getTableName,
   notExists,
   notInArray,
-  notBetween
+  notBetween,
+  getColumns
 } from "drizzle-orm";
 import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, IfCondition, ExistsCondition, NotExistsCondition, Returning, Transaction, SetCondition } from "./types.ts";
 import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolve_group_by_fields, resolve_order_by_fields, resolve_returning_fields, resolveCustomValue, toArray } from "./rbac";
@@ -498,7 +499,7 @@ export async function get_method(db: Database | Transaction, query: StructuredQu
   return rows;
 }
 
-export async function put_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any) {
+export async function put_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, built_where:any, tableName:string, limit:any, has_after_triggers:boolean) {
   if (!query.data) throw new Error("PUT requires data");
 
   const update_query = db.update(tableStruct.table).set(selected_data_fields)
@@ -518,11 +519,18 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
 
   if(limit != null) update_query.limit(limit)
 
-  if(query.returning) {
-    let fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
-    fields = alias_selected_fields(fields)
-    if (Object.keys(fields).length === 0) {
-      throw new Error("No valid returning fields allowed");
+  let after_function:any = null;
+    
+  if(query.returning || has_after_triggers) {
+    let fields
+    if(!has_after_triggers && query.returning) {
+      fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
+      fields = alias_selected_fields(fields)
+      if (Object.keys(fields).length === 0) {
+        throw new Error("No valid returning fields allowed");
+      }
+    }else if(has_after_triggers) {
+      fields = getColumns(tableStruct.table)
     }
     if (typeof update_query.returning === 'function') {
       update_query.returning(fields);
@@ -530,32 +538,127 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
       update_query.output(fields);
     }
   }
-  
+    
   let result = await update_query.execute();
 
-  return result;
+  let after: any = null;
+
+  if (has_after_triggers) {
+    if (after_function) {
+      after = await after_function(result);
+    } else {
+      after = result
+    }
+    if(query.returning) {
+      const allowedFields = Object.keys(
+        resolve_returning_fields(
+          structure,
+          query.returning,
+          query.type,
+          role,
+          tableName,
+          tableMap
+        )
+      );
+
+      result =
+        allowedFields.length === 0
+          ? []
+          : result.map((row: Record<string, any>) => {
+              const filtered: Record<string, any> = {};
+
+              for (const field of allowedFields) {
+                if (field in row) {
+                  filtered[field] = row[field];
+                }
+              }
+
+              return filtered;
+            });
+    }else result = []
+  }
+
+  return { result, after };
 }
 
-export async function post_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string) {
+export async function post_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string, has_after_triggers:boolean) {
   if (!query.data) throw new Error("POST requires data");
 
   const post_query = db
     .insert(tableStruct.table)
     .values(selected_data_fields);
   
-  const after_query:any = null;
+  let after_function:any = null;
     
-  if (typeof post_query.returning === 'function') {
-    post_query.returning();
-  }else if (typeof post_query.$returningId === 'function') {
-    post_query.$returningId();
-  }else if (typeof post_query.output === 'function') {
-    post_query.output();
+  if(query.returning || has_after_triggers) {
+    let fields
+    if(!has_after_triggers && query.returning) {
+      fields = resolve_returning_fields(structure, query.returning, query.type, role, tableName, tableMap)
+      fields = alias_selected_fields(fields)
+      if (Object.keys(fields).length === 0) {
+        throw new Error("No valid returning fields allowed");
+      }
+    }else if(has_after_triggers) {
+      fields = getColumns(tableStruct.table)
+    }
+    if (typeof post_query.returning === 'function') {
+      post_query.returning(fields);
+    }else if (typeof post_query.$returningId === 'function') {
+      post_query.$returningId(fields);
+      if(has_after_triggers) {
+        after_function = async (result:any) => {
+          if(!result) return
+          const fieldName = Object.keys(result[0])[0];
+          const values = result.map((obj:any) => Object.values(obj)[0]);
+          const after = await db.select().from(tableStruct.table).where(inArray(tableStruct.table[fieldName], values)).execute()
+          return after
+        }
+      }
+    }else if (typeof post_query.output === 'function') {
+      post_query.output(fields);
+    }
   }
     
   let result = await post_query.execute();
 
-  return result;
+  let after: any = null;
+
+  if (has_after_triggers) {
+    if (after_function) {
+      after = await after_function(result);
+    } else {
+      after = result
+    }
+    if(query.returning) {
+      const allowedFields = Object.keys(
+        resolve_returning_fields(
+          structure,
+          query.returning,
+          query.type,
+          role,
+          tableName,
+          tableMap
+        )
+      );
+
+      result =
+        allowedFields.length === 0
+          ? []
+          : result.map((row: Record<string, any>) => {
+              const filtered: Record<string, any> = {};
+
+              for (const field of allowedFields) {
+                if (field in row) {
+                  filtered[field] = row[field];
+                }
+              }
+
+              return filtered;
+            });
+    }else result = []
+  }
+
+  return { result, after };
 }
 
 export async function delete_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, built_where:any, tableName:string, limit:any){

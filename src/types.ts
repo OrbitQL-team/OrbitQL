@@ -4,12 +4,12 @@
 import { GelDatabase, GelTransaction } from "drizzle-orm/gel-core";
 import { MySql2Database, MySql2Transaction } from "drizzle-orm/mysql2";
 import { PlanetScaleDatabase, PlanetScaleTransaction } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase, PgTransaction } from "drizzle-orm/pg-core";
+import { PgAsyncDatabase, PgAsyncTransaction } from "drizzle-orm/pg-core";
 import { NodePgDatabase, NodePgTransaction } from "drizzle-orm/node-postgres";
 import { VercelPgDatabase, VercelPgTransaction } from "drizzle-orm/vercel-postgres";
 import { LibSQLDatabase, LibSQLTransaction } from "drizzle-orm/libsql";
 import { BetterSQLite3Database, BetterSQLiteTransaction } from "drizzle-orm/better-sqlite3";
-import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
+import { SQLiteBunDatabase } from "drizzle-orm/bun-sqlite";
 import { NeonDatabase, NeonTransaction } from "drizzle-orm/neon-serverless";
 import { GelJsDatabase } from "drizzle-orm/gel";
 import { AnyD1Database, DrizzleD1Database } from "drizzle-orm/d1";
@@ -43,7 +43,7 @@ export type Database =
   | GelDatabase<any, any, any>
   | MySql2Database
   | PlanetScaleDatabase
-  | PgDatabase<any, any, any>
+  | PgAsyncDatabase<any, any, any>
   | NodePgDatabase
   | NeonDatabase
   | VercelPgDatabase
@@ -72,28 +72,28 @@ export type Database =
   | PostgresJsDatabase
   | BaseSQLiteDatabase<any, any, any, any>
   | ExpoSQLiteDatabase
-  | BunSQLiteDatabase;
+  | SQLiteBunDatabase;
 
 export type Transaction =
   | GelTransaction<any, any, any>
-  | MySql2Transaction<any, any>
-  | PlanetScaleTransaction<any, any>
-  | PgTransaction<any, any>
-  | NodePgTransaction<any, any>
-  | NeonTransaction<any, any>
-  | VercelPgTransaction<any, any>
-  | LibSQLTransaction<any, any>
-  | BetterSQLiteTransaction<any, any>
-  | MySqlTransaction<any, any>
-  | SQLJsTransaction<any, any>
-  | PgliteTransaction<any, any>
-  | OPSQLiteTransaction<any, any>
+  | MySql2Transaction<any, any, any>
+  | PlanetScaleTransaction<any, any, any>
+  | PgAsyncTransaction<any, any, any>
+  | NodePgTransaction<any, any, any>
+  | NeonTransaction<any, any, any>
+  | VercelPgTransaction<any, any, any>
+  | LibSQLTransaction<any, any, any>
+  | BetterSQLiteTransaction<any, any, any>
+  | MySqlTransaction<any, any, any>
+  | SQLJsTransaction<any, any, any>
+  | PgliteTransaction<any, any, any>
+  | OPSQLiteTransaction<any, any, any>
+  | SingleStoreTransaction<any, any, any>
+  | TiDBServerlessTransaction<any, any, any>
+  | AwsDataApiTransaction<any, any, any>
   | SingleStoreTransaction<any, any>
-  | TiDBServerlessTransaction<any, any>
-  | AwsDataApiTransaction<any, any>
-  | SingleStoreTransaction<any, any>
-  | PostgresJsTransaction<any, any>
-  | ExpoSQLiteTransaction<any, any>
+  | PostgresJsTransaction<any, any, any>
+  | ExpoSQLiteTransaction<any, any, any>
 
 /* -------------------------------------------------------------------------- */
 /*                                  STRUCTURE                                 */
