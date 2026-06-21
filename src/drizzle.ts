@@ -681,7 +681,7 @@ export async function delete_method(db: Database | Transaction, query: Structure
 /*                               TRIGGERS RUNNER                              */
 /* -------------------------------------------------------------------------- */
 
-export async function run_triggers(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false, before_values?:any | any[], after_values?:any | any[]) {
+export async function run_triggers(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   for(let trigger of triggers) {
     if("if" in trigger.query) {
       const condition = trigger.query.if
@@ -693,7 +693,7 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
           await build_query(db, condition.do, user, role, structure, {
             disable_triggers: true,
             ...options
-          })
+          }, before_values, after_values, result_values)
         }
       }else if(!when_condition && condition.else) {
         if(typeof condition.else == "function" && "type" in condition.else) {
@@ -702,7 +702,7 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
           await build_query(db, condition.else, user, role, structure, {
             disable_triggers: true,
             ...options
-          })
+          }, before_values, after_values, result_values)
         }
       }
     }
@@ -797,7 +797,7 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
       await build_query(db, trigger.query, user, role, structure, {
         disable_triggers: true,
         ...options
-      })
+      }, before_values, after_values, result_values)
     }
   }
   return selected_data_fields

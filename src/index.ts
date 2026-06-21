@@ -156,7 +156,7 @@ export async function build_batch(
 /* -------------------------------------------------------------------------- */
 /*                              BUILDER FOR QUERY                             */
 /* -------------------------------------------------------------------------- */
-export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
+export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   /* -------------------------------------------------------------------------- */
   /*                              TABLE RETRIEVING                              */
   /* -------------------------------------------------------------------------- */
@@ -337,7 +337,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
       /* -------------------------------------------------------------------------- */
       /*                               AFTER TRIGGERS                               */
       /* -------------------------------------------------------------------------- */
-      if(after_triggers && has_after_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after)
+      if(after_triggers && has_after_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after, result)
     
       return result
     }

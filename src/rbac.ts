@@ -840,8 +840,40 @@ export function resolveCustomValue(
   tableMap: Record<string, any>,
   default_table_name: string,
   custom_value?: Record<string, any>,
+  before_value?: Record<string, any>,
+  after_value?: Record<string, any>,
+  result_value?: Record<string, any>,
 ): any {
     if (!value) return sql`${value}`;
+
+    const resolvePath = (
+        source: Record<string, any> | undefined,
+        key: string
+    ) => {
+        if (!source) return undefined;
+
+        // direct match
+        if (key in source) {
+            return is_undefined(source[key]);
+        }
+
+        // nested match
+        let val: any = source;
+
+        for (const part of key.split(".")) {
+            if (
+                val &&
+                typeof val === "object" &&
+                part in val
+            ) {
+                val = val[part];
+            } else {
+                return undefined;
+            }
+        }
+
+        return is_undefined(val);
+    };
 
     // ------------------------
     // Handle object: $col.X
@@ -897,67 +929,47 @@ export function resolveCustomValue(
     }
 
     // ------------------------
-    // $data.X
+    // $data.X / $before.X / $after.X
     // ------------------------
-    match = value.match(/^\$data\.(.+)$/);
+    match = value.match(/^\$(data|before|after)\.(.+)$/);
 
-    if (
-        match &&
-        custom_value
-    ) {
-        const key = match[1];
+    if (match) {
+        const [, scope, key] = match;
 
-        // direct match
-        if (key in custom_value) {
-            return is_undefined(custom_value[key]);
+        const source =
+            scope === "data"
+                ? (
+                    custom_value && !Array.isArray(custom_value)
+                        ? custom_value
+                        : query?.data && !Array.isArray(query.data)
+                            ? query.data
+                            : undefined
+                )
+                : scope === "before"
+                    ? (
+                        before_value && !Array.isArray(before_value)
+                            ? before_value
+                            : undefined
+                    )
+                    : scope === "after" 
+                    ? (
+                        after_value && !Array.isArray(after_value)
+                            ? after_value
+                            : undefined
+                    )
+                    : (
+                        result_value && !Array.isArray(result_value)
+                            ? result_value
+                            : undefined
+                    );
+
+        const resolved = resolvePath(source, key);
+
+        if (resolved !== undefined) {
+            return resolved;
         }
 
-        // nested resolution
-        const parts = key.split(".");
-        let val: any = custom_value;
-
-        for (const part of parts) {
-            if (
-                val &&
-                typeof val === "object" &&
-                part in val
-            ) {
-                val = val[part];
-            } else {
-                return sql`${""}`;
-            }
-        }
-
-        return is_undefined(val);
-    }else if (
-        match &&
-        query?.data &&
-        !Array.isArray(query.data)
-    ) {
-        const key = match[1];
-
-        // direct match
-        if (key in query.data) {
-            return is_undefined(query.data[key]);
-        }
-
-        // nested resolution
-        const parts = key.split(".");
-        let val: any = query.data;
-
-        for (const part of parts) {
-            if (
-                val &&
-                typeof val === "object" &&
-                part in val
-            ) {
-                val = val[part];
-            } else {
-                return sql`${""}`;
-            }
-        }
-
-        return is_undefined(val);
+        return sql`${""}`;
     }
 
     // ------------------------
