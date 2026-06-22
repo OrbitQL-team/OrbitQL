@@ -239,7 +239,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   /*                           ALLOWED FIELDS RESOLVER                          */
   /* -------------------------------------------------------------------------- */
 
-  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, default_table, table_name) : false
+  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, default_table, table_name, undefined, before_values, after_values, result_values) : false
 
   let user_select_data_fields: Record<string, any> = {};
 

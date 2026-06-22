@@ -22,7 +22,7 @@ import { build_query } from "./index.ts";
 /*                                 BUILD JOINS                                */
 /* -------------------------------------------------------------------------- */
 
-export async function buildJoin(db:Database | Transaction, q: any, joins: any[], tableMap: Record<string, any>, user: any, role:string, structure: Structure, query: StructuredQuery, default_table:any) {
+export async function buildJoin(db:Database | Transaction, q: any, joins: any[], tableMap: Record<string, any>, user: any, role:string, structure: Structure, query: StructuredQuery, default_table:any, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   for (const j of joins) {
     const joinStruct = tableMap[j.table];
     if (!joinStruct) throw new Error(`Table '${j.table}' not found in tableMap`);
@@ -32,7 +32,7 @@ export async function buildJoin(db:Database | Transaction, q: any, joins: any[],
     // Support object with AND/OR inside 'on'
     if (j.on && j.on.type && (j.on.type.toUpperCase() === "AND" || j.on.type.toUpperCase() === "OR")) {
       // Complex condition
-      joinCondition = await buildWhere(db, j.on, tableMap, user, role, structure, query, default_table, getTableName(default_table));
+      joinCondition = await buildWhere(db, j.on, tableMap, user, role, structure, query, default_table, getTableName(default_table), undefined, before_values, after_values, result_values);
     } else {
       // Simple key-value mapping
       const conditions: any[] = [];
@@ -89,7 +89,7 @@ async function or_condition(parts: any[]) {
   return or(...parts);
 } 
 
-async function if_conditions(db: Database | Transaction, cond: IfCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string) {
+async function if_conditions(db: Database | Transaction, cond: IfCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   let condition:any = sql``
   const when_condition = await if_condition(db, cond.if.when, tableMap, user, role, structure, query, default_table)
   if("do" in cond.if) {
@@ -98,7 +98,7 @@ async function if_conditions(db: Database | Transaction, cond: IfCondition, tabl
       if(typeof cond.if.do == 'function') throw Error('Function not allowed in where condition')
       if(typeof cond.if.do == 'object') {
         if(("type" in cond.if.do)) throw Error('Structured Query not allowed in where condition')
-        else do_condition = await buildWhere(db, cond.if.do, tableMap, user, role, structure, query, default_table, default_table_name)
+        else do_condition = await buildWhere(db, cond.if.do, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values)
       }
       else if(typeof cond.if.do == 'boolean') return cond.if.do
       else if(cond.if.do) do_condition = sql`${cond.if.do}`
@@ -110,7 +110,7 @@ async function if_conditions(db: Database | Transaction, cond: IfCondition, tabl
       if(typeof cond.if.else == 'function') throw Error('Function not allowed in where condition')
       if(typeof cond.if.else == 'object') {
         if(("type" in cond.if.else)) throw Error('Structured Query not allowed in where condition')
-        else else_condition = await buildWhere(db, cond.if.else, tableMap, user, role, structure, query, default_table, default_table_name)
+        else else_condition = await buildWhere(db, cond.if.else, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values)
       }
       else if(typeof cond.if.else == 'boolean') return cond.if.else
       else if(cond.if.else) else_condition = sql`${cond.if.else}`
@@ -121,7 +121,7 @@ async function if_conditions(db: Database | Transaction, cond: IfCondition, tabl
   return condition
 }
 
-async function exists_condition(db: Database | Transaction, cond: ExistsCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery) {
+async function exists_condition(db: Database | Transaction, cond: ExistsCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   let subTable = null
   let fields:any = null
   let subWhere = null
@@ -133,7 +133,7 @@ async function exists_condition(db: Database | Transaction, cond: ExistsConditio
     fields = alias_selected_fields(fields);
     if(!fields) throw new Error(`Inner fields not found`);
     subWhere = sub_query.where
-      ? await buildWhere(db, sub_query.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+      ? await buildWhere(db, sub_query.where, tableMap, user, role, structure, query, subTable, getTableName(subTable), undefined, before_values, after_values, result_values)
       : undefined;
   }
   let inner_query = db.select(fields).from(subTable)
@@ -143,7 +143,7 @@ async function exists_condition(db: Database | Transaction, cond: ExistsConditio
   return exists(inner_query);
 }
 
-async function not_exists_condition(db: Database | Transaction, cond: NotExistsCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery) {
+async function not_exists_condition(db: Database | Transaction, cond: NotExistsCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   let subTable = null
   let fields:any = null
   let subWhere = null
@@ -155,7 +155,7 @@ async function not_exists_condition(db: Database | Transaction, cond: NotExistsC
     fields = alias_selected_fields(fields);
     if(!fields) throw new Error(`Inner fields not found`);
     subWhere = sub_query.where
-      ? await buildWhere(db, sub_query.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+      ? await buildWhere(db, sub_query.where, tableMap, user, role, structure, query, subTable, getTableName(subTable), undefined, before_values, after_values, result_values)
       : undefined;
   }
   let inner_query = db.select(fields).from(subTable)
@@ -165,7 +165,7 @@ async function not_exists_condition(db: Database | Transaction, cond: NotExistsC
   return notExists(inner_query);
 }
 
-async function in_condition(db: Database | Transaction, left:any, right: any, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery) {
+async function in_condition(db: Database | Transaction, left:any, right: any, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   if (right && typeof right === "object" && "select" in right) {
     const subTable = tableMap[right.from];
     if (!subTable) throw new Error(`Table '${right.from}' not found`);
@@ -173,7 +173,7 @@ async function in_condition(db: Database | Transaction, left:any, right: any, ta
     fields = alias_selected_fields(fields);
     if(!fields) throw new Error(`Inner fields not found`);
     const subWhere = right.where
-      ? await buildWhere(db, right.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+      ? await buildWhere(db, right.where, tableMap, user, role, structure, query, subTable, getTableName(subTable), undefined, before_values, after_values, result_values)
       : undefined;
     let inner_query = db.select(fields).from(subTable)
     if(subWhere) {
@@ -186,7 +186,7 @@ async function in_condition(db: Database | Transaction, left:any, right: any, ta
   throw Error('Wrong values for in condition')
 }
 
-async function not_in_condition(db: Database | Transaction, left:any, right: any, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery) {
+async function not_in_condition(db: Database | Transaction, left:any, right: any, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   if (right && typeof right === "object" && "select" in right) {
       const subTable = tableMap[right.from];
       if (!subTable) throw new Error(`Table '${right.from}' not found`);
@@ -194,7 +194,7 @@ async function not_in_condition(db: Database | Transaction, left:any, right: any
       fields = alias_selected_fields(fields);
       if(!fields) throw new Error(`Inner fields not found`);
       const subWhere = right.where
-        ? await buildWhere(db, right.where, tableMap, user, role, structure, query, subTable, getTableName(subTable))
+        ? await buildWhere(db, right.where, tableMap, user, role, structure, query, subTable, getTableName(subTable), undefined, before_values, after_values, result_values)
         : undefined;
       let inner_query = db.select(fields).from(subTable)
       if(subWhere) {
@@ -211,12 +211,12 @@ async function not_in_condition(db: Database | Transaction, left:any, right: any
 /*                                WHERE BUILDER                               */
 /* -------------------------------------------------------------------------- */
 
-export async function buildWhere(db: Database | Transaction, cond: WhereCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string, custom_data?:Record<string, any>): Promise<any> {
+export async function buildWhere(db: Database | Transaction, cond: WhereCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string, custom_data?:Record<string, any>, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]): Promise<any> {
   // Nested AND/OR
   if ("and" in cond && cond.and) {
     let parts = await Promise.all(
       cond.and.map((c) =>
-        buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
+        buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values)
       )
     );
     return await and_condition(parts)
@@ -224,23 +224,23 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
   else if ("or" in cond && cond.or) {
     let parts = await Promise.all(
       cond.or.map((c) =>
-        buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name)
+        buildWhere(db, c, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values)
       )
     );
     return await or_condition(parts)
   }
   else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
-    return await if_conditions(db, cond, tableMap, user, role, structure, query, default_table, default_table_name)
+    return await if_conditions(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, before_values, after_values, result_values)
   }else if('not' in cond && cond.not) {
-    return not(await buildWhere(db, cond.not, tableMap, user, role, structure, query, default_table, default_table_name))
+    return not(await buildWhere(db, cond.not, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values))
   }
 
   if (cond && ('op' in cond || 'operator' in cond) && is_op_type(cond, "EXISTS") && 'query' in cond) {
-    return await exists_condition(db, cond, tableMap, user, role, structure, query)
+    return await exists_condition(db, cond, tableMap, user, role, structure, query, before_values, after_values, result_values)
   }
 
   if (cond && ('op' in cond || 'operator' in cond) && is_op_type(cond, "NOT EXISTS") && 'query' in cond) {
-    return await not_exists_condition(db, cond, tableMap, user, role, structure, query)
+    return await not_exists_condition(db, cond, tableMap, user, role, structure, query, before_values, after_values, result_values)
   }
 
   // Determine left side
@@ -250,18 +250,42 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
   let start: any
   let end: any
 
-  if(!custom_data && !('if' in cond ) && requests_data(cond) && query.data && Array.isArray(query.data)) {
+  if(!before_values && !('if' in cond ) && requests_data(cond) && Array.isArray(before_values)) {
+    //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
+    let parts = await Promise.all(
+      before_values.map((before_value) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_value, after_values, result_values)
+      )
+    );
+    return await and_condition(parts)
+  }else if(!after_values && !('if' in cond ) && requests_data(cond) && Array.isArray(after_values)) {
+    //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
+    let parts = await Promise.all(
+      after_values.map((after_value) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_value, result_values)
+      )
+    );
+    return await and_condition(parts)
+  }else if(!result_values && !('if' in cond ) && requests_data(cond) && Array.isArray(result_values)) {
+    //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
+    let parts = await Promise.all(
+      result_values.map((result_value) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_value)
+      )
+    );
+    return await and_condition(parts)
+  }else if(!custom_data && !('if' in cond ) && requests_data(cond) && query.data && Array.isArray(query.data)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
       query.data.map((custom_data) =>
-        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, custom_data)
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, custom_data, before_values, after_values, result_values)
       )
     );
     return await and_condition(parts)
   }
 
   if ("left_value" in cond) {
-    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data);
+    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
   } else if ("field" in cond && cond.field) {
     let tbl, col;
     if(cond.field.includes(".")) {
@@ -274,19 +298,19 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
   } else if("value" in cond) {
-    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
+    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
   } else {
     console.log(cond)
     throw new Error("Condition must have 'field' or 'left_value' or 'value");
   }
 
   if ("value" in cond) {
-    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
+    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
   }
   
   if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
-    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data);
-    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data);
+    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
+    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
   } else if(is_op_type(cond, "BETWEEN") && !("start" in cond && "end" in cond)) {
@@ -295,13 +319,13 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
 
   // Subquery IN
   if(is_op_type(cond, "IN") && (left != null && left !=undefined)) {
-    return await in_condition(db, left, right, tableMap, user, role, structure, query)
+    return await in_condition(db, left, right, tableMap, user, role, structure, query, before_values, after_values, result_values)
   }else if(is_op_type(cond, "IN")) {
     return sql`false`
   }
 
   if(is_op_type(cond, "NOT IN") && (left != null && left !=undefined)) {
-    return await not_in_condition(db, left, right, tableMap, user, role, structure, query)
+    return await not_in_condition(db, left, right, tableMap, user, role, structure, query, before_values, after_values, result_values)
   }else if(is_op_type(cond, "NOT IN")) {
     return sql`false`
   }
@@ -387,8 +411,8 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
 /*                      IF CONDITION TO VALIDATE QUERIES                      */
 /* -------------------------------------------------------------------------- */
 
-export async function if_condition(db:Database | Transaction, where_condtion:WhereCondition, table_map:any, user:any, role: string, structure: Structure, query:StructuredQuery, default_table:any):Promise<boolean> {
-  let where = await buildWhere(db, where_condtion, table_map, user, role, structure, query, default_table, getTableName(default_table));
+export async function if_condition(db:Database | Transaction, where_condtion:WhereCondition, table_map:any, user:any, role: string, structure: Structure, query:StructuredQuery, default_table:any, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]):Promise<boolean> {
+  let where = await buildWhere(db, where_condtion, table_map, user, role, structure, query, default_table, getTableName(default_table), undefined, before_values, after_values, result_values);
 
   // Start empty SQL object
   const need_table:boolean = query.join ? true : has_field_or_col_attribute(where_condtion)
@@ -408,7 +432,7 @@ export async function if_condition(db:Database | Transaction, where_condtion:Whe
     result: check_query
   }).from(from_table)
 
-  if(query.join) await buildJoin(db, builded_query, query.join, table_map, user, role, structure, query, from_table)
+  if(query.join) await buildJoin(db, builded_query, query.join, table_map, user, role, structure, query, from_table, before_values, after_values, result_values)
 
   builded_query.limit(1)
   console.log(builded_query.toSQL().sql, builded_query.toSQL().params)
@@ -468,10 +492,10 @@ export function is_allowed_empty(allowed: FieldPermission) {
 /*                           ENDPOINT QUERY METHODS                           */
 /* -------------------------------------------------------------------------- */
 
-export async function get_method(db: Database | Transaction, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any> | undefined, built_where:any, tableName:string, limit:any) {
+export async function get_method(db: Database | Transaction, query: StructuredQuery, user:string, structure:Structure, rolePermissions:RolePermissions, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any> | undefined, built_where:any, tableName:string, limit:any, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   const q = db.select(selected_data_fields).from(tableStruct.table);
 
-  if (query.join) await buildJoin(db, q, query.join, tableMap, user, role, structure, query, tableStruct.table);
+  if (query.join) await buildJoin(db, q, query.join, tableMap, user, role, structure, query, tableStruct.table, before_values, after_values, result_values);
 
   if (built_where) q.where(built_where);
 
@@ -688,7 +712,12 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
       const when_condition = await if_condition(db, condition.when, tableMap, user, role, structure, query, tableStruct.table)
       if(when_condition && condition.do) {
         if(typeof condition.do == "function" && "type" in condition.do) {
-          await condition.do();
+          const params = {
+            before: before_values,
+            after: after_values,
+            result: result_values
+          }
+          await condition.do(params);
         }else if(typeof condition.do == "object" && "type" in condition.do) {
           await build_query(db, condition.do, user, role, structure, {
             disable_triggers: true,
@@ -697,7 +726,12 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         }
       }else if(!when_condition && condition.else) {
         if(typeof condition.else == "function" && "type" in condition.else) {
-          await condition.else();
+          const params = {
+            before: before_values,
+            after: after_values,
+            result: result_values
+          }
+          await condition.else(params);
         }else if(typeof condition.else == "object" && "type" in condition.else) {
           await build_query(db, condition.else, user, role, structure, {
             disable_triggers: true,

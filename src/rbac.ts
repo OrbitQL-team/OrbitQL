@@ -719,7 +719,7 @@ export function is_undefined(v: any) {
     return sql`${v}`;
 }
 
-const DATA_REF_REGEX = /^\$data\.(.+)$/;
+const DATA_REF_REGEX = /^\$(data|before|after)\.(.+)$/;
 
 function isDataRef(value: unknown): boolean {
     return typeof value === "string" && DATA_REF_REGEX.test(value);
