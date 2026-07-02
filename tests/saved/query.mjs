@@ -71,11 +71,18 @@ export default {
   type: "POST",
   data: {
     "name": "prova 2",
-    "surname": "test",
+    "surname": 'test',
     "email": "prova@prova.prova 2",
     "have_access": 1,
     "age": 19,
   },
   table: "users",
-  returning: "name"
-};
+  returning: 'id'
+}
+
+
+// export default {
+//   type: "GET",
+//   select: "*",
+//   table: "users",
+// }

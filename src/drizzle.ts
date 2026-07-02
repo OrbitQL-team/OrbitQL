@@ -250,7 +250,7 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
   let start: any
   let end: any
 
-  if(!before_values && !('if' in cond ) && requests_data(cond) && Array.isArray(before_values)) {
+  if(!before_values && !('if' in cond ) && requests_data(cond, 'before') && Array.isArray(before_values)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
       before_values.map((before_value) =>
@@ -258,7 +258,7 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
       )
     );
     return await and_condition(parts)
-  }else if(!after_values && !('if' in cond ) && requests_data(cond) && Array.isArray(after_values)) {
+  }else if(!after_values && !('if' in cond ) && requests_data(cond, 'after') && Array.isArray(after_values)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
       after_values.map((after_value) =>
@@ -266,7 +266,7 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
       )
     );
     return await and_condition(parts)
-  }else if(!result_values && !('if' in cond ) && requests_data(cond) && Array.isArray(result_values)) {
+  }else if(!result_values && !('if' in cond ) && requests_data(cond, 'result') && Array.isArray(result_values)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
       result_values.map((result_value) =>
@@ -274,7 +274,7 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
       )
     );
     return await and_condition(parts)
-  }else if(!custom_data && !('if' in cond ) && requests_data(cond) && query.data && Array.isArray(query.data)) {
+  }else if(!custom_data && !('if' in cond ) && requests_data(cond, 'data') && query.data && Array.isArray(query.data)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
       query.data.map((custom_data) =>
