@@ -251,7 +251,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   }
   if(query_type == "PUT" || query_type == "POST") {
     if("data" in query && query.data) {
-      user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap);
+      user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap, before_values, after_values, result_values);
       user_select_data_fields = stripPrefixes(user_select_data_fields);
     }else throw Error("Data is necessary on PUT/POST requests")
   }

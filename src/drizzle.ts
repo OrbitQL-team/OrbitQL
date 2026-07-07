@@ -250,27 +250,27 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
   let start: any
   let end: any
 
-  if(!before_values && !('if' in cond ) && requests_data(cond, 'before') && Array.isArray(before_values)) {
+  if(!custom_data && !('if' in cond ) && requests_data(cond, 'before') && before_values && Array.isArray(before_values)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
-      before_values.map((before_value) =>
-        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_value, after_values, result_values)
+      before_values.map((custom_data) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, custom_data, before_values, after_values, result_values)
       )
     );
     return await and_condition(parts)
-  }else if(!after_values && !('if' in cond ) && requests_data(cond, 'after') && Array.isArray(after_values)) {
+  }else if(!custom_data && !('if' in cond ) && requests_data(cond, 'after') && after_values && Array.isArray(after_values)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
-      after_values.map((after_value) =>
-        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_value, result_values)
+      after_values.map((custom_data) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, custom_data, before_values, after_values, result_values)
       )
     );
     return await and_condition(parts)
-  }else if(!result_values && !('if' in cond ) && requests_data(cond, 'result') && Array.isArray(result_values)) {
+  }else if(!custom_data && !('if' in cond ) && requests_data(cond, 'result') && result_values && Array.isArray(result_values)) {
     //AND CONDITION AND PASS CUSTOM DATA FOR EACH OF THE ARRAY
     let parts = await Promise.all(
-      result_values.map((result_value) =>
-        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_value)
+      result_values.map((custom_data) =>
+        buildWhere(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, custom_data, before_values, after_values, result_values)
       )
     );
     return await and_condition(parts)
@@ -285,7 +285,7 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
   }
 
   if ("left_value" in cond) {
-    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
+    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data);
   } else if ("field" in cond && cond.field) {
     let tbl, col;
     if(cond.field.includes(".")) {
@@ -298,19 +298,19 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
   } else if("value" in cond) {
-    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
+    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
   } else {
     console.log(cond)
     throw new Error("Condition must have 'field' or 'left_value' or 'value");
   }
 
   if ("value" in cond) {
-    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
+    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
   }
   
   if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
-    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
-    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data, before_values, after_values, result_values);
+    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data);
+    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data);
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
   } else if(is_op_type(cond, "BETWEEN") && !("start" in cond && "end" in cond)) {

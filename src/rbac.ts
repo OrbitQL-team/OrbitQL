@@ -814,79 +814,96 @@ export function resolve_data(
   type: string,
   role: string,
   default_table: string,
-  tableMap: Record<string, Record<string, any>>
+  tableMap: Record<string, Record<string, any>>, 
+  before_values?:any | any[], 
+  after_values?:any | any[], 
+  result_values?:any | any[]
 ): Record<string, any> | Array<Record<string, any>> {
-  if (Array.isArray(fields)) {
-    return fields.map((item) =>
-      resolve_data(
-        structure,
-        item,
-        type,
-        role,
-        default_table,
-        tableMap
-      )
-    );
-  }
-
-  if (!fields || typeof fields !== "object") {
-    return {};
-  }
-
-  const allowed_fields: Record<string, any> = {};
-
-  for (const [entry, value] of Object.entries(fields)) {
-    const [rawTable, rawField] = entry.includes(".")
-      ? entry.split(".")
-      : [default_table, entry];
-
-    const table = rawTable;
-    const field = rawField;
-
-    // schema validation
-    if (!tableMap[table] || !(field in tableMap[table])) {
-      throw new Error(`Field '${field}' does not exist on table '${table}'`);
+    if (Array.isArray(fields)) {
+        return fields.map((item) =>
+            resolve_data(
+                structure,
+                item,
+                type,
+                role,
+                default_table,
+                tableMap
+            )
+        );
     }
 
-    // endpoint + permissions
-    const endpoint = getEndpoint(structure, table, type);
-    const permissions = getPermissions(endpoint, role);
-
-    if (!permissions) continue;
-
-    const { allowed, disallowed } = permissions;
-
-    if (!resolve_allowed_fields(field, allowed, disallowed)) {
-      continue;
+    if (!fields || typeof fields !== "object") {
+        return {};
     }
 
-    // $col resolution (if needed)
-    if (typeof value === "string" && value.startsWith("$col.")) {
-      const colRef = value.slice(5);
-      const { table: vTbl, field: vCol } = resolveColRef(
-        colRef,
-        default_table,
-        tableMap
-      );
+    const allowed_fields: Record<string, any> = {};
 
-      const vEndpoint = getEndpoint(structure, vTbl, type);
-      const vPermissions = getPermissions(vEndpoint, role);
+    for (const [entry, value] of Object.entries(fields)) {
+        const [rawTable, rawField] = entry.includes(".")
+            ? entry.split(".")
+            : [default_table, entry];
 
-      if (!vPermissions) continue;
+        const table = rawTable;
+        const field = rawField;
 
-      const ok = resolve_allowed_fields(
-        vCol,
-        vPermissions.allowed,
-        vPermissions.disallowed
-      );
+        // schema validation
+        if (!tableMap[table] || !(field in tableMap[table])) {
+            throw new Error(`Field '${field}' does not exist on table '${table}'`);
+        }
 
-      if (!ok) continue;
+        // endpoint + permissions
+        const endpoint = getEndpoint(structure, table, type);
+        const permissions = getPermissions(endpoint, role);
+
+        if (!permissions) continue;
+
+        const { allowed, disallowed } = permissions;
+
+        if (!resolve_allowed_fields(field, allowed, disallowed)) {
+            continue;
+        }
+
+        // $col resolution (if needed)
+        if (typeof value === "string" && value.startsWith("$col.")) {
+            const colRef = value.slice(5);
+            const { table: vTbl, field: vCol } = resolveColRef(
+                colRef,
+                default_table,
+                tableMap
+            );
+
+            const vEndpoint = getEndpoint(structure, vTbl, type);
+            const vPermissions = getPermissions(vEndpoint, role);
+
+            if (!vPermissions) continue;
+
+            const ok = resolve_allowed_fields(
+                vCol,
+                vPermissions.allowed,
+                vPermissions.disallowed
+            );
+
+            if (!ok) continue;
+        }
+
+        if(isDataRef(value, 'before') && before_values && Array.isArray(before_values)) {
+            for(let value of before_values) {
+
+            }
+        }else if(isDataRef(value, 'after') && after_values && Array.isArray(after_values)) {
+            for(let value of after_values) {
+                
+            }
+        }else if(isDataRef(value, 'result') && result_values && Array.isArray(result_values)) {
+            for(let value of result_values) {
+                
+            }
+        }else {
+            allowed_fields[entry] = value;
+        }
     }
 
-    allowed_fields[entry] = value;
-  }
-
-  return allowed_fields;
+    return allowed_fields;
 }
 
 export function requests_data(
@@ -914,9 +931,6 @@ export function resolveCustomValue(
   tableMap: Record<string, any>,
   default_table_name: string,
   custom_value?: Record<string, any>,
-  before_value?: Record<string, any>,
-  after_value?: Record<string, any>,
-  result_value?: Record<string, any>,
 ): any {
     if (!value) return sql`${value}`;
 
@@ -1013,29 +1027,18 @@ export function resolveCustomValue(
         const source =
             scope === "data"
                 ? (
+                    (custom_value && !Array.isArray(custom_value)
+                        ? custom_value
+                        : undefined) ??
+                    (query?.data && !Array.isArray(query.data)
+                        ? query.data
+                        : undefined)
+                )
+                : (
                     custom_value && !Array.isArray(custom_value)
                         ? custom_value
-                        : query?.data && !Array.isArray(query.data)
-                            ? query.data
-                            : undefined
-                )
-                : scope === "before"
-                    ? (
-                        before_value && !Array.isArray(before_value)
-                            ? before_value
-                            : undefined
-                    )
-                    : scope === "after" 
-                    ? (
-                        after_value && !Array.isArray(after_value)
-                            ? after_value
-                            : undefined
-                    )
-                    : (
-                        result_value && !Array.isArray(result_value)
-                            ? result_value
-                            : undefined
-                    );
+                        : undefined
+                );
 
         const resolved = resolvePath(source, key);
 
