@@ -1,8 +1,8 @@
-# Polaris
+# OrbitQL
 
 ## Policy-Driven SQL Handler
 
-**Polaris** is a declarative, database-level authorization and query engine built on **TypeScript**. It combines:
+**OrbitQL** is a declarative, database-level authorization and query engine built on **TypeScript**. It combines:
 
 * Role-based access control
 * Field-level permissions
@@ -15,7 +15,7 @@
 * Before and after triggers which can change passed data, run queries and user functions
 * Bulk inserts
 
-Polaris compiles structured request definitions into **safe SQL queries**, enforcing complex business rules directly at the database level.
+OrbitQL compiles structured request definitions into **safe SQL queries**, enforcing complex business rules directly at the database level.
 
 ---
 
@@ -57,7 +57,7 @@ Roles can define:
 
 ### 3. Payload-Aware Validation
 
-Unlike traditional RLS systems, Polaris can validate **incoming mutation data**:
+Unlike traditional RLS systems, OrbitQL can validate **incoming mutation data**:
 
 ```ts
 if: {
@@ -81,7 +81,7 @@ Enables rules such as:
 
 ### 4. State Transition Enforcement
 
-Polaris compares:
+OrbitQL compares:
 
 * Existing row values
 * Incoming mutation payload
@@ -190,7 +190,7 @@ Flowchart:
 
 ---
 
-## 🚀 Why Polaris Exists
+## 🚀 Why OrbitQL Exists
 
 Traditional solutions:
 
@@ -198,7 +198,7 @@ Traditional solutions:
 * GraphQL permission engines → Limited conditional logic
 * Middleware RBAC → Often evaluated outside SQL
 
-Polaris enables:
+OrbitQL enables:
 
 * Payload-aware authorization
 * Business workflow validation
@@ -211,7 +211,7 @@ Polaris enables:
 
 ## ⚖️ Comparison to GraphQL Engines (e.g., Hasura)
 
-| Capability              | Polaris                  | Typical GraphQL Engine |
+| Capability              | OrbitQL                  | Typical GraphQL Engine |
 | ----------------------- | ------------------------ | ---------------------- |
 | Payload-aware rules     | ✅                        | ❌                      |
 | State transition checks | ✅                        | ❌                      |
@@ -253,16 +253,16 @@ Our goal is to simplify complex backend problems while remaining secure, scalabl
 
 ---
 
-## 🎯 What We Built Polaris For
+## 🎯 What We Built OrbitQL For
 
-Polaris addresses recurring problems in API development:
+OrbitQL addresses recurring problems in API development:
 
 * Scattered authorization logic across application code
 * Difficulty enforcing complex business rules at the database level
 * Lack of payload-aware authorization in most RBAC/RLS systems
 * Fragile APIs with hard-to-maintain rules
 
-Polaris centralizes **authorization and validation logic** in a declarative format, making APIs:
+OrbitQL centralizes **authorization and validation logic** in a declarative format, making APIs:
 
 * More stable
 * Safer
@@ -273,7 +273,7 @@ Polaris centralizes **authorization and validation logic** in a declarative form
 
 ## 🔮 Future Plans
 
-Polaris will evolve into a **SaaS platform** with:
+OrbitQL will evolve into a **SaaS platform** with:
 
 * Policy management interface
 * API integration tooling
@@ -287,7 +287,7 @@ Polaris will evolve into a **SaaS platform** with:
 * Developer plans for startups and indie builders
 * Advanced plans for production SaaS applications
 
-**Open-source code:** Polaris is fully open source and self-hostable. Users may modify and host the project freely.
+**Open-source code:** OrbitQL is fully open source and self-hostable. Users may modify and host the project freely.
 
 ---
 
@@ -300,7 +300,7 @@ We value feedback on:
 * Real-world use cases
 * Missing features
 
-Your input will help shape Polaris’s future.
+Your input will help shape OrbitQL’s future.
 
 ---
 
