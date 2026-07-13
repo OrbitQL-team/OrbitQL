@@ -809,25 +809,29 @@ function resolveColRef(
 }
 
 export function resolve_data(
-  structure: Structure,
-  fields: any,
-  type: string,
-  role: string,
-  default_table: string,
-  tableMap: Record<string, Record<string, any>>, 
-  before_values?:any | any[], 
-  after_values?:any | any[], 
-  result_values?:any | any[]
+    structure: Structure,
+    fields: any,
+    type: string,
+    role: string,
+    default_table: string,
+    tableMap: Record<string, Record<string, any>>, 
+    before_values?: any | any[], 
+    after_values?: any | any[], 
+    result_values?: any | any[]
 ): Record<string, any> | Array<Record<string, any>> {
+
     if (Array.isArray(fields)) {
-        return fields.map((item) =>
+        return fields.flatMap((item) =>
             resolve_data(
                 structure,
                 item,
                 type,
                 role,
                 default_table,
-                tableMap
+                tableMap,
+                before_values,
+                after_values,
+                result_values
             )
         );
     }
@@ -836,7 +840,35 @@ export function resolve_data(
         return {};
     }
 
-    const allowed_fields: Record<string, any> = {};
+    const normalizedBefore = Array.isArray(before_values)
+        ? before_values
+        : before_values !== undefined
+            ? [before_values]
+            : [];
+
+    const normalizedAfter = Array.isArray(after_values)
+        ? after_values
+        : after_values !== undefined
+            ? [after_values]
+            : [];
+
+    const normalizedResult = Array.isArray(result_values)
+        ? result_values
+        : result_values !== undefined
+            ? [result_values]
+            : [];
+
+    const maxValues = Math.max(
+        normalizedBefore.length,
+        normalizedAfter.length,
+        normalizedResult.length,
+        1
+    );
+
+    let results: Record<string, any>[] = Array.from(
+        { length: maxValues },
+        () => ({})
+    );
 
     for (const [entry, value] of Object.entries(fields)) {
         const [rawTable, rawField] = entry.includes(".")
@@ -848,7 +880,9 @@ export function resolve_data(
 
         // schema validation
         if (!tableMap[table] || !(field in tableMap[table])) {
-            throw new Error(`Field '${field}' does not exist on table '${table}'`);
+            throw new Error(
+                `Field '${field}' does not exist on table '${table}'`
+            );
         }
 
         // endpoint + permissions
@@ -863,9 +897,10 @@ export function resolve_data(
             continue;
         }
 
-        // $col resolution (if needed)
+        // $col validation
         if (typeof value === "string" && value.startsWith("$col.")) {
             const colRef = value.slice(5);
+
             const { table: vTbl, field: vCol } = resolveColRef(
                 colRef,
                 default_table,
@@ -877,33 +912,48 @@ export function resolve_data(
 
             if (!vPermissions) continue;
 
-            const ok = resolve_allowed_fields(
-                vCol,
-                vPermissions.allowed,
-                vPermissions.disallowed
-            );
-
-            if (!ok) continue;
+            if (
+                !resolve_allowed_fields(
+                    vCol,
+                    vPermissions.allowed,
+                    vPermissions.disallowed
+                )
+            ) {
+                continue;
+            }
         }
 
-        if(isDataRef(value, 'before') && before_values && Array.isArray(before_values)) {
-            for(let value of before_values) {
 
-            }
-        }else if(isDataRef(value, 'after') && after_values && Array.isArray(after_values)) {
-            for(let value of after_values) {
-                
-            }
-        }else if(isDataRef(value, 'result') && result_values && Array.isArray(result_values)) {
-            for(let value of result_values) {
-                
-            }
-        }else {
-            allowed_fields[entry] = value;
+        // Handle dynamic values
+        if (isDataRef(value, "before")) {
+            results = results.map((item, index) => ({
+                ...item,
+                [entry]: normalizedBefore[index] ?? null
+            }));
+
+        } else if (isDataRef(value, "after")) {
+            results = results.map((item, index) => ({
+                ...item,
+                [entry]: normalizedAfter[index] ?? null
+            }));
+
+        } else if (isDataRef(value, "result")) {
+            results = results.map((item, index) => ({
+                ...item,
+                [entry]: normalizedResult[index] ?? null
+            }));
+
+        } else {
+            results = results.map((item) => ({
+                ...item,
+                [entry]: value
+            }));
         }
     }
 
-    return allowed_fields;
+    return results.length === 1
+        ? results[0]
+        : results;
 }
 
 export function requests_data(
