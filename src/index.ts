@@ -258,7 +258,15 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
 
   let result:any
 
-  let selected_data_fields: Record<string, any> = { ...user_select_data_fields };
+  console.log(user_select_data_fields)
+
+  let selected_data_fields: Record<string, any> | Array<Record<string, any>> =
+    Array.isArray(user_select_data_fields)
+        ? [...user_select_data_fields]
+        : { ...user_select_data_fields };
+
+  console.log(selected_data_fields)
+
 
   if (!Object.keys(selected_data_fields).length) {
     throw new Error("No allowed fields");
@@ -281,7 +289,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   ) : { before_triggers: null, after_triggers: null }
 
   const has_after_triggers = !options?.disable_triggers ? (after_triggers != null ? after_triggers.length != 0 : false) : false
-  console.log(query)
+
   result = {
     execute: async () => {
       let before:any = null

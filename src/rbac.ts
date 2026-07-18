@@ -1100,7 +1100,7 @@ export function resolveCustomValue(
             return resolved;
         }
 
-        return "";
+        throw new Error(`match not found with passed value: ${value}`);
     }
 
     // ------------------------

@@ -69,13 +69,22 @@
 
 export default {
   type: "POST",
-  data: {
-    "name": "prova 2",
-    "surname": 'test',
-    "email": "prova@prova.prova 2",
-    "have_access": 1,
-    "age": 19,
-  },
+  data: [
+    {
+      "name": "prova 2",
+      "surname": 'test',
+      "email": "prova@prova.prova 1",
+      "have_access": 1,
+      "age": 19,
+    },
+    {
+      "name": "prova 2",
+      "surname": 'test',
+      "email": "prova@prova.prova 2",
+      "have_access": 0,
+      "age": 20,
+    }
+  ],
   table: "users",
   returning: 'id'
 }

@@ -599,6 +599,8 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
 export async function post_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string, has_after_triggers:boolean) {
   if (!query.data) throw new Error("POST requires data");
 
+  console.log('data: ', selected_data_fields)
+
   const post_query = db
     .insert(tableStruct.table)
     .values(selected_data_fields);

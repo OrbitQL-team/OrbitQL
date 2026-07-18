@@ -102,9 +102,9 @@ export default {
               "set": {
                 "field": "name",
                 "when": {
-                  "value": "$data.name",
-                  "op": "=",
-                  "value": "test"
+                  "left_value": "$data.name",
+                  "op": "!=",
+                  "value": "wela"
                 },
                 "value": "wela"
               }
@@ -115,8 +115,8 @@ export default {
             "query": {
               "type": "POST",
               "data": {
-                "name": "new",
-                "surname": 'new',
+                "name": "new row",
+                "surname": "new row",
                 "email": "$after.email",
                 "have_access": "$after.have_access",
                 "age": "$after.age",
