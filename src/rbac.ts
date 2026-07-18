@@ -1,4 +1,4 @@
-import { avg, avgDistinct, count, countDistinct, max, min, sql, sum, sumDistinct } from "drizzle-orm";
+import { avg, avgDistinct, count, countDistinct, max, min, sum, sumDistinct } from "drizzle-orm";
 import { asc, desc } from "drizzle-orm";
 import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.ts";
 
@@ -716,7 +716,7 @@ export function stripPrefixes(input: any): any {
 // * Simply checks if value passed is undefined
 export function is_undefined(v: any) {
     if (v === undefined) throw new Error(`Undefined value not supported`);
-    return sql`${v}`;
+    return v;
 }
 
 function escapeRegex(str: string) {
@@ -810,6 +810,8 @@ function resolveColRef(
 
 export function resolve_data(
     structure: Structure,
+    user: any,
+    query: StructuredQuery,
     fields: any,
     type: string,
     role: string,
@@ -824,6 +826,8 @@ export function resolve_data(
         return fields.flatMap((item) =>
             resolve_data(
                 structure,
+                user,
+                query,
                 item,
                 type,
                 role,
@@ -928,25 +932,25 @@ export function resolve_data(
         if (isDataRef(value, "before")) {
             results = results.map((item, index) => ({
                 ...item,
-                [entry]: normalizedBefore[index] ?? null
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table, normalizedBefore[index]) ?? null
             }));
 
         } else if (isDataRef(value, "after")) {
             results = results.map((item, index) => ({
                 ...item,
-                [entry]: normalizedAfter[index] ?? null
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table, normalizedAfter[index]) ?? null
             }));
 
         } else if (isDataRef(value, "result")) {
             results = results.map((item, index) => ({
                 ...item,
-                [entry]: normalizedResult[index] ?? null
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table, normalizedResult[index]) ?? null
             }));
 
         } else {
             results = results.map((item) => ({
                 ...item,
-                [entry]: value
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table)
             }));
         }
     }
@@ -982,7 +986,7 @@ export function resolveCustomValue(
   default_table_name: string,
   custom_value?: Record<string, any>,
 ): any {
-    if (!value) return sql`${value}`;
+    if (!value) return value;
 
     const resolvePath = (
         source: Record<string, any> | undefined,
@@ -1056,7 +1060,7 @@ export function resolveCustomValue(
     // ------------------------
     // Non-string → return as-is
     // ------------------------
-    if (typeof value !== "string") return sql`${value}`;
+    if (typeof value !== "string") return value;
 
     // ------------------------
     // $user.X
@@ -1096,7 +1100,7 @@ export function resolveCustomValue(
             return resolved;
         }
 
-        return sql`${""}`;
+        return "";
     }
 
     // ------------------------

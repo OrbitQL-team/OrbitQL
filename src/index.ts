@@ -251,7 +251,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   }
   if(query_type == "PUT" || query_type == "POST") {
     if("data" in query && query.data) {
-      user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap, before_values, after_values, result_values);
+      user_select_data_fields = resolve_data(structure, user, query, query.data, query_type, role, query.table, tableMap, before_values, after_values, result_values);
       user_select_data_fields = stripPrefixes(user_select_data_fields);
     }else throw Error("Data is necessary on PUT/POST requests")
   }
@@ -281,22 +281,25 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   ) : { before_triggers: null, after_triggers: null }
 
   const has_after_triggers = !options?.disable_triggers ? (after_triggers != null ? after_triggers.length != 0 : false) : false
-
+  console.log(query)
   result = {
     execute: async () => {
       let before:any = null
       let after:any = null
-      /* -------------------------------------------------------------------------- */
-      /*                               BEFORE TRIGGERS                              */
-      /* -------------------------------------------------------------------------- */
-
-      if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
 
       /* -------------------------------------------------------------------------- */
       /*                               QUERY EXECUTION                              */
       /* -------------------------------------------------------------------------- */
 
       let result = await db.transaction(async (tx: Transaction)=>{
+
+        /* -------------------------------------------------------------------------- */
+        /*                               BEFORE TRIGGERS                              */
+        /* -------------------------------------------------------------------------- */
+
+        if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
+
+
         /* -------------------------------------------------------------------------- */
         /*                           RUN QUERY BASED ON TYPE                          */
         /* -------------------------------------------------------------------------- */
@@ -331,13 +334,13 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
           }
         }
 
+        /* -------------------------------------------------------------------------- */
+        /*                               AFTER TRIGGERS                               */
+        /* -------------------------------------------------------------------------- */
+        if(after_triggers && has_after_triggers) await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after, result)
+
         return result
       })
-
-      /* -------------------------------------------------------------------------- */
-      /*                               AFTER TRIGGERS                               */
-      /* -------------------------------------------------------------------------- */
-      if(after_triggers && has_after_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after, result)
     
       return result
     }

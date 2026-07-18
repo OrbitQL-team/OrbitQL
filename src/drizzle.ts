@@ -285,7 +285,7 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
   }
 
   if ("left_value" in cond) {
-    left = resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data);
+    left = sql`${resolveCustomValue(cond.left_value, user, query, tableMap, default_table_name, custom_data)}`;
   } else if ("field" in cond && cond.field) {
     let tbl, col;
     if(cond.field.includes(".")) {
@@ -298,19 +298,19 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
     if (!column) throw new Error(`Column '${cond.field}' not found`);
     left = column;
   } else if("value" in cond) {
-    left = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
+    left = sql`${resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data)}`;
   } else {
     console.log(cond)
     throw new Error("Condition must have 'field' or 'left_value' or 'value");
   }
 
   if ("value" in cond) {
-    right = resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data);
+    right = sql`${resolveCustomValue(cond.value, user, query, tableMap, default_table_name, custom_data)}`;
   }
   
   if("start" in cond && "end" in cond && is_op_type(cond, "BETWEEN")) {
-    start = resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data);
-    end = resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data);
+    start = sql`${resolveCustomValue(cond.start, user, query, tableMap, default_table_name, custom_data)}`;
+    end = sql`${resolveCustomValue(cond.end, user, query, tableMap, default_table_name, custom_data)}`;
   } else if(("start" in cond || "end" in cond)) {
     throw new Error("'start' or 'end' fields must have a compatible operator");
   } else if(is_op_type(cond, "BETWEEN") && !("start" in cond && "end" in cond)) {
@@ -719,10 +719,10 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
           }
           await condition.do(params);
         }else if(typeof condition.do == "object" && "type" in condition.do) {
-          await build_query(db, condition.do, user, role, structure, {
+          await (await build_query(db, condition.do, user, role, structure, {
             disable_triggers: true,
             ...options
-          }, before_values, after_values, result_values)
+          }, before_values, after_values, result_values)).execute()
         }
       }else if(!when_condition && condition.else) {
         if(typeof condition.else == "function" && "type" in condition.else) {
@@ -733,10 +733,10 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
           }
           await condition.else(params);
         }else if(typeof condition.else == "object" && "type" in condition.else) {
-          await build_query(db, condition.else, user, role, structure, {
+          await (await build_query(db, condition.else, user, role, structure, {
             disable_triggers: true,
             ...options
-          }, before_values, after_values, result_values)
+          }, before_values, after_values, result_values)).execute()
         }
       }
     }
@@ -828,10 +828,10 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
       }else set_value(set, where, table_name);
     }
     if("type" in trigger.query) {
-      await build_query(db, trigger.query, user, role, structure, {
+      await (await build_query(db, trigger.query, user, role, structure, {
         disable_triggers: true,
         ...options
-      }, before_values, after_values, result_values)
+      }, before_values, after_values, result_values)).execute()
     }
   }
   return selected_data_fields

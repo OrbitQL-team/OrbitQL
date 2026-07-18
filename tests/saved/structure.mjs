@@ -113,13 +113,15 @@ export default {
           {
             "type": "AFTER",
             "query": {
-              "if": {
-                "when": {
-                  "value": "$data.name",
-                  "op": "=",
-                  "value": "test"
-                },
-              }
+              "type": "POST",
+              "data": {
+                "name": "new",
+                "surname": 'new',
+                "email": "$after.email",
+                "have_access": "$after.have_access",
+                "age": "$after.age",
+              },
+              "table": "users",
             }
           },
         ]
