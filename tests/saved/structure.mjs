@@ -81,9 +81,24 @@ export default {
               "value": 1
             }
           },
-          "disallowed": "",
-          "returning": true
+          "returning": true,
         },
+        "triggers": [
+          {
+            "type": "AFTER",
+            "query": {
+              "type": "POST",
+              "data": {
+                "name": "new row",
+                "surname": "$before.surname",
+                "email": "$after.email",
+                "have_access": "$after.have_access",
+                "age": "$before.age",
+              },
+              "table": "users",
+            }
+          },
+        ]
       },
       {
         "type": "POST",

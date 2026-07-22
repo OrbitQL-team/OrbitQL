@@ -549,6 +549,15 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
     let fields = getColumns(tableStruct.table)
     if (typeof update_query.returning === 'function') {
       update_query.returning(fields);
+    }else if (typeof update_query.$returningId === 'function') {
+      update_query.$returningId(fields);
+      after_function = async (result:any) => {
+        if(!result) return
+        const fieldName = Object.keys(result[0])[0];
+        const values = result.map((obj:any) => Object.values(obj)[0]);
+        const after = await db.select().from(tableStruct.table).where(inArray(tableStruct.table[fieldName], values)).execute()
+        return after
+      }
     }else if (typeof update_query.output === 'function') {
       update_query.output(fields);
     }
@@ -598,8 +607,6 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
 
 export async function post_method(db: Database | Transaction, query: StructuredQuery, structure:Structure, role:string, tableStruct:TableStructure, tableMap: Record<string, any>, selected_data_fields: Record<string, any>, tableName:string, has_after_triggers:boolean) {
   if (!query.data) throw new Error("POST requires data");
-
-  console.log('data: ', selected_data_fields)
 
   const post_query = db
     .insert(tableStruct.table)
@@ -721,10 +728,14 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
           }
           await condition.do(params);
         }else if(typeof condition.do == "object" && "type" in condition.do) {
-          await (await build_query(db, condition.do, user, role, structure, {
-            disable_triggers: true,
-            ...options
-          }, before_values, after_values, result_values)).execute()
+          try{
+            await (await build_query(db, condition.do, user, role, structure, {
+              disable_triggers: true,
+              ...options
+            }, before_values, after_values, result_values)).execute()
+          }catch(err) {
+            throw err;
+          }
         }
       }else if(!when_condition && condition.else) {
         if(typeof condition.else == "function" && "type" in condition.else) {
@@ -735,10 +746,14 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
           }
           await condition.else(params);
         }else if(typeof condition.else == "object" && "type" in condition.else) {
-          await (await build_query(db, condition.else, user, role, structure, {
-            disable_triggers: true,
-            ...options
-          }, before_values, after_values, result_values)).execute()
+          try{
+            await (await build_query(db, condition.else, user, role, structure, {
+              disable_triggers: true,
+              ...options
+            }, before_values, after_values, result_values)).execute()
+          }catch(err) {
+            throw err
+          }
         }
       }
     }
@@ -830,10 +845,14 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
       }else set_value(set, where, table_name);
     }
     if("type" in trigger.query) {
-      await (await build_query(db, trigger.query, user, role, structure, {
-        disable_triggers: true,
-        ...options
-      }, before_values, after_values, result_values)).execute()
+      try{
+        await (await build_query(db, trigger.query, user, role, structure, {
+          disable_triggers: true,
+          ...options
+        }, before_values, after_values, result_values)).execute()
+      }catch(err) {
+        throw err;
+      }
     }
   }
   return selected_data_fields
