@@ -1,1 +1,1 @@
-export default "admin";
+export default "user";

@@ -7,7 +7,6 @@ export default {
           "allow": [
             "id",
             "name",
-            "email",
             "surname"
           ],
           "disallowed": "",
@@ -31,46 +30,19 @@ export default {
           "allowed": {
             "field": [
               "name",
-              "surname"
+              "surname",
+              "id"
             ],
             "where": {
               "and": [
                 {
-                  "if": {
-                    "when": {
-                      "value": "$data.name",
-                      "op": "IS NOT NULL"
-                    },
-                    "do": true,
-                    "else": false
-                  },
-                },
-                {
-                  "if": {
-                    "when": {
-                      "value": "$data.surname",
-                      "op": "IS NOT NULL"
-                    },
-                    "do": true,
-                    "else": false
-                  },
-                },
-                {
-                  "field": "id",
-                  "op": "=",
-                  "value": "$user.id"
-                },
-                {
-                  "left_value": "$user.have_access",
-                  "op": "=",
-                  "value": 1
+                  "field": "name",
+                  "op": "IS NOT NULL"
                 }
               ]
             }
           },
-          "disallowed": [
-            "*"
-          ]
+          "disallowed": []
         },
         "admin": {
           "allowed": {

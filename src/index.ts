@@ -31,22 +31,13 @@ export default async function compile(
 
     return {
       async execute() {
-        const results: any[] = [];
-        const errors: any[] = [];
-
-        for (const part of parts) {
-          try {
-            const res = await part.execute();
-            results.push(res);
-          } catch (err) {
-            errors.push(err);
-          }
-        }
+        const results = await Promise.all(
+          parts.map((part) => part.execute())
+        );
 
         return {
-          ok: errors.length === 0,
-          data: results,
-          error: errors.length ? errors : undefined
+          ok: results.every((r:any) => r.ok),
+          data: results
         };
       }
     };
@@ -109,13 +100,22 @@ export async function build_batch(
     case "QUERY": {
       return {
         async execute() {
-          const results = [];
+          const results: any[] = [];
+          const errors: any[] = [];
 
           for (const plan of plans) {
-            results.push(await plan.execute());
+            try {
+              results.push(await plan.execute());
+            } catch (err) {
+              errors.push(err);
+            }
           }
 
-          return results;
+          return {
+            ok: errors.length === 0,
+            data: results,
+            error: errors.length ? errors : undefined
+          };
         },
       };
     }
@@ -123,32 +123,42 @@ export async function build_batch(
     case "TRANSACTION": {
       return {
         async execute() {
-          return await db.transaction(async (tx: Transaction) => {
-            const results = [];
+          try {
+            const results = await db.transaction(async (tx: Transaction) => {
+              const values = [];
 
-            for (const query of phase.queries) {
-              const plan = await build_query(
-                tx,
-                query,
-                user,
-                role,
-                structure,
-                options
-              );
+              for (const query of phase.queries) {
+                const plan = await build_query(
+                  tx,
+                  query,
+                  user,
+                  role,
+                  structure,
+                  options
+                );
 
-              results.push(await plan.execute());
-            }
+                values.push(await plan.execute());
+              }
 
-            return results;
-          });
+              return values;
+            });
+
+            return {
+              ok: true,
+              data: results
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              error: err
+            };
+          }
         },
       };
     }
 
     default: {
-      throw new Error(
-        `Unsupported phase mode: ${phase.mode}`
-      );
+      throw new Error(`Unsupported phase mode: ${phase.mode}`);
     }
   }
 }

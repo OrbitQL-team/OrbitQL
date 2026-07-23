@@ -1100,7 +1100,8 @@ export function resolveCustomValue(
             return resolved;
         }
 
-        throw new Error(`match not found with passed value: ${value}`);
+        // Commented as not passed data but requested on RBAC can cause failed queries also if are correct
+        // throw new Error(`match not found with passed value: ${value}`);
     }
 
     // ------------------------

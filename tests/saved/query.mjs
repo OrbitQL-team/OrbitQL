@@ -67,26 +67,47 @@
 //   ]
 // };
 
-export default {
-  type: "PUT",
-  data: {
-    "name": "edited",
-    "surname": 'edited',
-    "email": "edited",
-    "have_access": 0,
-    "age": 26,
-  },
-  table: "users",
-  where: {
-    'field': 'id',
-    'op': '=',
-    'value': 64
-  }
-}
-
-
 // export default {
-//   type: "GET",
-//   select: "*",
+//   type: "PUT",
+//   data: {
+//     "name": "edited",
+//     "surname": 'edited',
+//     "email": "edited",
+//     "have_access": 0,
+//     "age": 26,
+//   },
 //   table: "users",
+//   where: {
+//     'field': 'id',
+//     'op': '=',
+//     'value': 64
+//   }
 // }
+
+
+export default {
+  phases: [
+    {
+      mode: 'query',
+      queries: [
+        {
+          type: "GET",
+          select: "*",
+          table: "users",
+        },
+        {
+          type: "PUT",
+          data: {
+            "name": 'null'
+          },
+          table: "users",
+          where: {
+            field: "id",
+            op: '=',
+            value: "63"
+          }
+        }
+      ]
+    }
+  ]
+}
