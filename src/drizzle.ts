@@ -562,6 +562,8 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
       update_query.output(fields);
     }
   }
+
+  console.log(update_query.toSQL().sql, update_query.toSQL().params)
     
   let result = await update_query.execute();
 

@@ -4,24 +4,18 @@ export default {
       {
         "type": "GET",
         "user": {
-          "allow": [
-            "id",
-            "name",
-            "surname"
-          ],
-          "disallowed": "",
-        },
-        "admin": {
-          "allowed": {
+          "allow": {
             "field": "*",
             "where": {
-              "left_value": "$user.have_access",
+              "field": "have_access",
               "op": "=",
-              "value": 1
+              "value": "1"
             }
           },
-          "disallowed": "",
-          "limit": 10,
+          "disallowed": ["id", "have_access"],
+        },
+        "admin": {
+          "allowed": "*"
         },
       },
       {
@@ -31,251 +25,131 @@ export default {
             "field": [
               "name",
               "surname",
-              "id"
+              "email",
+              "age"
             ],
             "where": {
               "and": [
                 {
-                  "field": "name",
+                  "value": "$data.name",
                   "op": "IS NOT NULL"
-                }
-              ]
-            }
-          },
-          "disallowed": []
-        },
-        "admin": {
-          "allowed": {
-            "field": "*",
-            "where": {
-              "left_value": "$user.have_access",
-              "op": "=",
-              "value": 1
-            }
-          },
-          "returning": true,
-        },
-        "triggers": [
-          {
-            "type": "AFTER",
-            "query": {
-              "type": "POST",
-              "data": {
-                "name": "new row",
-                "surname": "$before.surname",
-                "email": "$after.email",
-                "have_access": "$after.have_access",
-                "age": "$before.age",
-              },
-              "table": "users",
-            }
-          },
-        ]
-      },
-      {
-        "type": "POST",
-        "user": {
-          "allowed": [],
-          "disallowed": []
-        },
-        "admin": {
-          "allowed": "*",
-          "returning": true
-        },
-        "triggers": [
-          {
-            "type": "BEFORE",
-            "query": {
-              "set": {
-                "field": "name",
-                "when": {
-                  "left_value": "$data.name",
-                  "op": "!=",
-                  "value": "wela"
                 },
-                "value": "wela"
-              }
-            }
-          },
-          {
-            "type": "AFTER",
-            "query": {
-              "type": "POST",
-              "data": {
-                "name": "new row",
-                "surname": "new row",
-                "email": "$after.email",
-                "have_access": "$after.have_access",
-                "age": "$after.age",
-              },
-              "table": "users",
-            }
-          },
-        ]
-      },
-      {
-        "type": "DELETE",
-        "user": {
-          "allowed": [],
-          "disallowed": []
-        }
-      }
-    ],
-    "table": "users"
-  },
-  "employees": {
-    "endpoints": [
-      {
-        "type": "GET",
-        "user": {
-          "allow": [
-            "id",
-            "name",
-            "email",
-            "surname"
-          ],
-          "disallowed": "",
-        },
-        "admin": {
-          "allowed": {
-            "field": "*",
-            "where": {
-              "left_value": "$user.have_access",
-              "op": "=",
-              "value": 1
-            }
-          },
-          "disallowed": "",
-          "limit": 10,
-        },
-      },
-      {
-        "type": "PUT",
-        "user": {
-          "allowed": {
-            "field": [
-              "name",
-              "surname"
-            ],
-            "where": {
-              "and": [
                 {
-                  "if": {
-                    "when": {
-                      "value": "$data.name",
-                      "op": "IS NOT NULL"
-                    },
-                    "do": true,
-                    "else": false
-                  },
+                  "value": "$data.surname",
+                  "op": "IS NOT NULL"
+                },
+                {
+                  "value": "$data.email",
+                  "op": "IS NOT NULL"
                 },
                 {
                   "if": {
                     "when": {
-                      "value": "$data.surname",
-                      "op": "IS NOT NULL"
+                      "left_value": "$data.age",
+                      "op": "<",
+                      "value": "0"
                     },
-                    "do": true,
-                    "else": false
-                  },
+                    "do": false,
+                    "else": {
+                      "value": "$data.age",
+                      "op": "IS NOT NULL"
+                    }
+                  }
                 },
                 {
                   "field": "id",
                   "op": "=",
                   "value": "$user.id"
                 },
-                {
-                  "left_value": "$user.have_access",
-                  "op": "=",
-                  "value": 1
-                }
               ]
             }
           },
-          "disallowed": [
-            "*"
-          ]
+          "disallowed": []
         },
         "admin": {
           "allowed": {
             "field": "*",
             "where": {
-              "left_value": "$user.have_access",
-              "op": "=",
-              "value": 1
+              "and": [
+                {
+                  "value": "$data.name",
+                  "op": "IS NOT NULL"
+                },
+                {
+                  "value": "$data.surname",
+                  "op": "IS NOT NULL"
+                },
+                {
+                  "value": "$data.email",
+                  "op": "IS NOT NULL"
+                },
+                {
+                  "if": {
+                    "when": {
+                      "left_value": "$data.age",
+                      "op": "<",
+                      "value": "0"
+                    },
+                    "do": false,
+                    "else": {
+                      "value": "$data.age",
+                      "op": "IS NOT NULL"
+                    }
+                  }
+                }
+              ]
             }
           },
-          "disallowed": "",
-          "returning": true
+          "returning": true,
         },
       },
       {
         "type": "POST",
-        "user": {
-          "allowed": [],
-          "disallowed": []
-        },
         "admin": {
-          "allowed": "*",
-          "returning": true
-        },
-        "triggers": [
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "name",
-                "when": {
+          "allowed": {
+            "field": "*",
+            "where": {
+              "and": [
+                {
                   "value": "$data.name",
-                  "op": "IS NULL"
+                  "op": "IS NOT NULL"
                 },
-                "value": "wela"
-              }
+                {
+                  "value": "$data.surname",
+                  "op": "IS NOT NULL"
+                },
+                {
+                  "value": "$data.email",
+                  "op": "IS NOT NULL"
+                },
+                {
+                  "if": {
+                    "when": {
+                      "left_value": "$data.age",
+                      "op": "<",
+                      "value": "0"
+                    },
+                    "do": false,
+                    "else": {
+                      "value": "$data.age",
+                      "op": "IS NOT NULL"
+                    }
+                  }
+                }
+              ]
             }
           },
-        ]
+          "returning": true,
+        },
       },
       {
         "type": "DELETE",
-        "user": {
-          "allowed": [],
-          "disallowed": []
+        "admin": {
+          "allowed": "*",
+          "returning": true
         }
       }
     ],
     "table": "users"
-  },
-  "test": {
-    "endpoints": [
-      {
-        "type": "POST",
-        "user": {
-          "allowed": [],
-          "disallowed": []
-        },
-        "admin": {
-          "allowed": "*",
-          "returning": true
-        },
-        "triggers": [
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "name",
-                "when": {
-                  "value": "$data.name",
-                  "op": "IS NULL"
-                },
-                "value": "wela"
-              }
-            }
-          },
-        ]
-      },
-    ],
-    "table": "test"
   },
 };
