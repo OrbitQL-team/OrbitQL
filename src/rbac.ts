@@ -314,7 +314,7 @@ export function resolve_returning_fields(
                     );
                 }
 
-                allowedFields[`${table}.${fieldName}`] = fieldRef;
+                allowedFields[fieldName] = fieldRef;
             };
 
             if (field === "*") {
@@ -349,7 +349,7 @@ export function resolve_returning_fields(
                 );
             }
 
-            allowedFields[`${table}.${fieldName}`] = fieldRef;
+            allowedFields[fieldName] = fieldRef;
         };
 
         if (field === "*") {
@@ -719,113 +719,258 @@ export function is_undefined(v: any) {
     return v;
 }
 
-const DATA_REF_REGEX = /^\$data\.(.+)$/;
-
-function isDataRef(value: unknown): boolean {
-    return typeof value === "string" && DATA_REF_REGEX.test(value);
+function escapeRegex(str: string) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function checkObject(obj: Record<string, any>): boolean {
-    return Object.values(obj).some(isDataRef);
+function isDataRef(value: unknown, kind: string): boolean {
+  const safeKind = escapeRegex(kind);
+  const DATA_REF_REGEX = new RegExp(`^\\$(${safeKind})\\.(.+)$`);
+
+  return typeof value === "string" && DATA_REF_REGEX.test(value);
 }
 
-// * Resolve allowed passed data
+function checkObject(obj: Record<string, any>, kind: string): boolean {
+  return Object.values(obj).some((value) =>
+    isDataRef(value, kind)
+  );
+}
+
+function getEndpoint(structure: Structure, table: string, type: string) {
+  const tableStruct = structure[table];
+  if (!tableStruct) throw new Error(`Unknown table '${table}'`);
+
+  const endpoint = tableStruct.endpoints.find(
+    (e) => e.type.toUpperCase() === type.toUpperCase()
+  );
+
+  if (!endpoint) throw new Error(`${type} not allowed on ${table}`);
+
+  return endpoint;
+}
+
+function getPermissions(endpoint: any, role: string) {
+  const rolePermissions = endpoint[role];
+
+  if (
+    !rolePermissions ||
+    typeof rolePermissions !== "object" ||
+    Array.isArray(rolePermissions)
+  ) {
+    return null;
+  }
+
+  return {
+    allowed:
+      "allowed" in rolePermissions
+        ? rolePermissions.allowed
+        : "allow" in rolePermissions
+        ? rolePermissions.allow
+        : [],
+
+    disallowed:
+      "disallowed" in rolePermissions
+        ? rolePermissions.disallowed ?? []
+        : "deny" in rolePermissions
+        ? rolePermissions.deny ?? []
+        : [],
+  };
+}
+
+function resolveColRef(
+  colRef: string,
+  default_table: string,
+  tableMap: Record<string, Record<string, any>>
+) {
+  const parts = colRef.split(".");
+
+  let table: string;
+  let field: string;
+
+  if (parts.length === 2) {
+    [table, field] = parts;
+  } else if (parts.length === 1) {
+    if (!default_table) {
+      throw new Error(
+        `Column '${colRef}' missing table and no default_table provided`
+      );
+    }
+    table = default_table;
+    field = parts[0];
+  } else {
+    throw new Error(`Invalid $col format: '${colRef}'`);
+  }
+
+  if (!tableMap[table] || !(field in tableMap[table])) {
+    throw new Error(`Field '${field}' does not exist on table '${table}'`);
+  }
+
+  return { table, field };
+}
+
 export function resolve_data(
     structure: Structure,
+    user: any,
+    query: StructuredQuery,
     fields: any,
     type: string,
     role: string,
     default_table: string,
-    tableMap: Record<string, Record<string, any>>
+    tableMap: Record<string, Record<string, any>>, 
+    before_values?: any | any[], 
+    after_values?: any | any[], 
+    result_values?: any | any[]
 ): Record<string, any> | Array<Record<string, any>> {
 
     if (Array.isArray(fields)) {
-        return fields.map((item) =>
+        return fields.flatMap((item) =>
             resolve_data(
                 structure,
+                user,
+                query,
                 item,
                 type,
                 role,
                 default_table,
-                tableMap
+                tableMap,
+                before_values,
+                after_values,
+                result_values
             )
         );
     }
 
-    const allowed_fields: Record<string, any> = {};
-
     if (!fields || typeof fields !== "object") {
-        return allowed_fields;
+        return {};
     }
 
+    const normalizedBefore = Array.isArray(before_values)
+        ? before_values
+        : before_values !== undefined
+            ? [before_values]
+            : [];
+
+    const normalizedAfter = Array.isArray(after_values)
+        ? after_values
+        : after_values !== undefined
+            ? [after_values]
+            : [];
+
+    const normalizedResult = Array.isArray(result_values)
+        ? result_values
+        : result_values !== undefined
+            ? [result_values]
+            : [];
+
+    const maxValues = Math.max(
+        normalizedBefore.length,
+        normalizedAfter.length,
+        normalizedResult.length,
+        1
+    );
+
+    let results: Record<string, any>[] = Array.from(
+        { length: maxValues },
+        () => ({})
+    );
+
     for (const [entry, value] of Object.entries(fields)) {
-        let table: string;
-        let field: string;
+        const [rawTable, rawField] = entry.includes(".")
+            ? entry.split(".")
+            : [default_table, entry];
 
-        if (entry.includes(".")) {
-            [table, field] = entry.split(".");
-        } else {
-            table = default_table;
-            field = entry;
+        const table = rawTable;
+        const field = rawField;
+
+        // schema validation
+        if (!tableMap[table] || !(field in tableMap[table])) {
+            throw new Error(
+                `Field '${field}' does not exist on table '${table}'`
+            );
         }
 
-        const tableStruct = structure[table];
-        if (!tableStruct) {
-            throw new Error(`Unknown table '${table}'`);
-        }
+        // endpoint + permissions
+        const endpoint = getEndpoint(structure, table, type);
+        const permissions = getPermissions(endpoint, role);
 
-        const endpoint = tableStruct.endpoints.find(e => e.type.toUpperCase() === type.toUpperCase());
-        if (!endpoint) {
-            throw new Error(`${type} not allowed on ${table}`);
-        }
+        if (!permissions) continue;
 
-        const rolePermissions = endpoint[role];
-        if (typeof rolePermissions !== "object" || !rolePermissions || Array.isArray(rolePermissions)) {
+        const { allowed, disallowed } = permissions;
+
+        if (!resolve_allowed_fields(field, allowed, disallowed)) {
             continue;
         }
 
-        const allowed =
-            'allowed' in rolePermissions
-                ? rolePermissions.allowed
-                : 'allow' in rolePermissions
-                ? rolePermissions.allow
-                : [];
+        // $col validation
+        if (typeof value === "string" && value.startsWith("$col.")) {
+            const colRef = value.slice(5);
 
-        const disallowed =
-            'disallowed' in rolePermissions
-                ? rolePermissions.disallowed ?? []
-                : 'deny' in rolePermissions
-                ? rolePermissions.deny ?? []
-                : [];
+            const { table: vTbl, field: vCol } = resolveColRef(
+                colRef,
+                default_table,
+                tableMap
+            );
 
-        // * Schema existence check
-        if (!tableMap[table] || !(field in tableMap[table])) {
-            throw new Error(`Field '${field}' does not exist on table '${table}'`);
+            const vEndpoint = getEndpoint(structure, vTbl, type);
+            const vPermissions = getPermissions(vEndpoint, role);
+
+            if (!vPermissions) continue;
+
+            if (
+                !resolve_allowed_fields(
+                    vCol,
+                    vPermissions.allowed,
+                    vPermissions.disallowed
+                )
+            ) {
+                continue;
+            }
         }
 
-        // * Authorization check (normalized field)
-        if (!resolve_allowed_fields(field, allowed, disallowed)) {
-            console.log("TABLE: ", table)
-            console.log("REMOVED: ",field)
-            continue
-        };
 
-        allowed_fields[entry] = value;
+        // Handle dynamic values
+        if (isDataRef(value, "before")) {
+            results = results.map((item, index) => ({
+                ...item,
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table, normalizedBefore[index]) ?? null
+            }));
+
+        } else if (isDataRef(value, "after")) {
+            results = results.map((item, index) => ({
+                ...item,
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table, normalizedAfter[index]) ?? null
+            }));
+
+        } else if (isDataRef(value, "result")) {
+            results = results.map((item, index) => ({
+                ...item,
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table, normalizedResult[index]) ?? null
+            }));
+
+        } else {
+            results = results.map((item) => ({
+                ...item,
+                [entry]: resolveCustomValue(value, user, query, tableMap, default_table)
+            }));
+        }
     }
 
-    return allowed_fields;
+    return results.length === 1
+        ? results[0]
+        : results;
 }
 
 export function requests_data(
-    cond: SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition
+    cond: SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition,
+    kind: string
 ): boolean {
     return Object.entries(cond).some(([_, value]) => {
         if (typeof value === "string") {
-            return isDataRef(value);
+            return isDataRef(value, kind);
         }
 
         if (value && typeof value === "object") {
-            return checkObject(value);
+            return checkObject(value, kind);
         }
 
         return false;
@@ -842,6 +987,35 @@ export function resolveCustomValue(
   custom_value?: Record<string, any>,
 ): any {
     if (!value) return value;
+
+    const resolvePath = (
+        source: Record<string, any> | undefined,
+        key: string
+    ) => {
+        if (!source) return undefined;
+
+        // direct match
+        if (key in source) {
+            return is_undefined(source[key]);
+        }
+
+        // nested match
+        let val: any = source;
+
+        for (const part of key.split(".")) {
+            if (
+                val &&
+                typeof val === "object" &&
+                part in val
+            ) {
+                val = val[part];
+            } else {
+                return undefined;
+            }
+        }
+
+        return is_undefined(val);
+    };
 
     // ------------------------
     // Handle object: $col.X
@@ -897,67 +1071,37 @@ export function resolveCustomValue(
     }
 
     // ------------------------
-    // $data.X
+    // $data.X / $before.X / $after.X
     // ------------------------
-    match = value.match(/^\$data\.(.+)$/);
+    match = value.match(/^\$(data|before|after|result)\.(.+)$/);
 
-    if (
-        match &&
-        custom_value
-    ) {
-        const key = match[1];
+    if (match) {
+        const [, scope, key] = match;
 
-        // direct match
-        if (key in custom_value) {
-            return is_undefined(custom_value[key]);
+        const source =
+            scope === "data"
+                ? (
+                    (custom_value && !Array.isArray(custom_value)
+                        ? custom_value
+                        : undefined) ??
+                    (query?.data && !Array.isArray(query.data)
+                        ? query.data
+                        : undefined)
+                )
+                : (
+                    custom_value && !Array.isArray(custom_value)
+                        ? custom_value
+                        : undefined
+                );
+
+        const resolved = resolvePath(source, key);
+
+        if (resolved !== undefined) {
+            return resolved;
         }
 
-        // nested resolution
-        const parts = key.split(".");
-        let val: any = custom_value;
-
-        for (const part of parts) {
-            if (
-                val &&
-                typeof val === "object" &&
-                part in val
-            ) {
-                val = val[part];
-            } else {
-                return "";
-            }
-        }
-
-        return is_undefined(val);
-    }else if (
-        match &&
-        query?.data &&
-        !Array.isArray(query.data)
-    ) {
-        const key = match[1];
-
-        // direct match
-        if (key in query.data) {
-            return is_undefined(query.data[key]);
-        }
-
-        // nested resolution
-        const parts = key.split(".");
-        let val: any = query.data;
-
-        for (const part of parts) {
-            if (
-                val &&
-                typeof val === "object" &&
-                part in val
-            ) {
-                val = val[part];
-            } else {
-                return "";
-            }
-        }
-
-        return is_undefined(val);
+        // Commented as not passed data but requested on RBAC can cause failed queries also if are correct
+        // throw new Error(`match not found with passed value: ${value}`);
     }
 
     // ------------------------

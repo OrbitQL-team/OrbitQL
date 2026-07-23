@@ -31,22 +31,13 @@ export default async function compile(
 
     return {
       async execute() {
-        const results: any[] = [];
-        const errors: any[] = [];
-
-        for (const part of parts) {
-          try {
-            const res = await part.execute();
-            results.push(res);
-          } catch (err) {
-            errors.push(err);
-          }
-        }
+        const results = await Promise.all(
+          parts.map((part) => part.execute())
+        );
 
         return {
-          ok: errors.length === 0,
-          data: results,
-          error: errors.length ? errors : undefined
+          ok: results.every((r:any) => r.ok),
+          data: results
         };
       }
     };
@@ -109,13 +100,22 @@ export async function build_batch(
     case "QUERY": {
       return {
         async execute() {
-          const results = [];
+          const results: any[] = [];
+          const errors: any[] = [];
 
           for (const plan of plans) {
-            results.push(await plan.execute());
+            try {
+              results.push(await plan.execute());
+            } catch (err) {
+              errors.push(err);
+            }
           }
 
-          return results;
+          return {
+            ok: errors.length === 0,
+            data: results,
+            error: errors.length ? errors : undefined
+          };
         },
       };
     }
@@ -123,32 +123,42 @@ export async function build_batch(
     case "TRANSACTION": {
       return {
         async execute() {
-          return await db.transaction(async (tx: Transaction) => {
-            const results = [];
+          try {
+            const results = await db.transaction(async (tx: Transaction) => {
+              const values = [];
 
-            for (const query of phase.queries) {
-              const plan = await build_query(
-                tx,
-                query,
-                user,
-                role,
-                structure,
-                options
-              );
+              for (const query of phase.queries) {
+                const plan = await build_query(
+                  tx,
+                  query,
+                  user,
+                  role,
+                  structure,
+                  options
+                );
 
-              results.push(await plan.execute());
-            }
+                values.push(await plan.execute());
+              }
 
-            return results;
-          });
+              return values;
+            });
+
+            return {
+              ok: true,
+              data: results
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              error: err
+            };
+          }
         },
       };
     }
 
     default: {
-      throw new Error(
-        `Unsupported phase mode: ${phase.mode}`
-      );
+      throw new Error(`Unsupported phase mode: ${phase.mode}`);
     }
   }
 }
@@ -156,7 +166,7 @@ export async function build_batch(
 /* -------------------------------------------------------------------------- */
 /*                              BUILDER FOR QUERY                             */
 /* -------------------------------------------------------------------------- */
-export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}) {
+export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   /* -------------------------------------------------------------------------- */
   /*                              TABLE RETRIEVING                              */
   /* -------------------------------------------------------------------------- */
@@ -239,7 +249,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   /*                           ALLOWED FIELDS RESOLVER                          */
   /* -------------------------------------------------------------------------- */
 
-  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, default_table, table_name) : false
+  const built_where = combinedWhere ? await buildWhere(db, combinedWhere!, tableMap, user, role, structure, query, default_table, table_name, undefined, before_values, after_values, result_values) : false
 
   let user_select_data_fields: Record<string, any> = {};
 
@@ -251,57 +261,108 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   }
   if(query_type == "PUT" || query_type == "POST") {
     if("data" in query && query.data) {
-      user_select_data_fields = resolve_data(structure, query.data, query_type, role, query.table, tableMap);
+      user_select_data_fields = resolve_data(structure, user, query, query.data, query_type, role, query.table, tableMap, before_values, after_values, result_values);
       user_select_data_fields = stripPrefixes(user_select_data_fields);
     }else throw Error("Data is necessary on PUT/POST requests")
   }
 
   let result:any
 
-  let selected_data_fields: Record<string, any> = { ...user_select_data_fields };
+  console.log(user_select_data_fields)
 
-  /* -------------------------------------------------------------------------- */
-  /*                               BEFORE TRIGGERS                              */
-  /* -------------------------------------------------------------------------- */
+  let selected_data_fields: Record<string, any> | Array<Record<string, any>> =
+    Array.isArray(user_select_data_fields)
+        ? [...user_select_data_fields]
+        : { ...user_select_data_fields };
 
-  if(endpoint.triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
+  console.log(selected_data_fields)
+
 
   if (!Object.keys(selected_data_fields).length) {
     throw new Error("No allowed fields");
   }
 
   /* -------------------------------------------------------------------------- */
-  /*                           RUN QUERY BASED ON TYPE                          */
+  /*                             TRIGGERS FILTERING                             */
   /* -------------------------------------------------------------------------- */
 
-  switch(query_type.toUpperCase()) {
-    case 'GET': {
-      result = await get_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
-      break;
-    }
-    case 'PUT': {
-      result = await put_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
-      break;
-    }
-    case 'POST': {
-      result = await post_method(db, options, query, user, structure, role, tableStruct, tableMap, selected_data_fields, tableName)
-      break;
-    }
-    case 'DELETE': {
-      result = await delete_method(db, options, query, user, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
-      break;
-    }
-    default: {
-      throw new Error("Invalid operation");
+  const { before_triggers, after_triggers } = endpoint.triggers ? endpoint.triggers.reduce(
+    (acc, trigger) => {
+      if (trigger.type.toUpperCase() === 'AFTER') {
+        if(acc.after_triggers) acc.after_triggers.push(trigger);
+      } else if (trigger.type.toUpperCase() === 'BEFORE') {
+        if(acc.before_triggers) acc.before_triggers.push(trigger);
+      }
+      return acc;
+    },
+    { before_triggers: [] as typeof endpoint.triggers, after_triggers: [] as typeof endpoint.triggers }
+  ) : { before_triggers: null, after_triggers: null }
+
+  const has_after_triggers = !options?.disable_triggers ? (after_triggers != null ? after_triggers.length != 0 : false) : false
+
+  result = {
+    execute: async () => {
+      let before:any = null
+      let after:any = null
+
+      /* -------------------------------------------------------------------------- */
+      /*                               QUERY EXECUTION                              */
+      /* -------------------------------------------------------------------------- */
+
+      let result = await db.transaction(async (tx: Transaction)=>{
+
+        /* -------------------------------------------------------------------------- */
+        /*                               BEFORE TRIGGERS                              */
+        /* -------------------------------------------------------------------------- */
+
+        if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
+
+
+        /* -------------------------------------------------------------------------- */
+        /*                           RUN QUERY BASED ON TYPE                          */
+        /* -------------------------------------------------------------------------- */
+        
+        let result
+
+        switch(query_type.toUpperCase()) {
+          case 'GET': {
+            result = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
+            break;
+          }
+          case 'PUT': {
+            if(has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            const res = await put_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit, has_after_triggers)
+            result = res.result;
+            after = res.after;
+            break;
+          }
+          case 'POST': {
+            const res = await post_method(tx, query, structure, role, tableStruct, tableMap, selected_data_fields, tableName, has_after_triggers)
+            result = res.result;
+            after = res.after;
+            break;
+          }
+          case 'DELETE': {
+            if(has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            result = await delete_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
+            break;
+          }
+          default: {
+            throw new Error("Invalid operation");
+          }
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /*                               AFTER TRIGGERS                               */
+        /* -------------------------------------------------------------------------- */
+        if(after_triggers && has_after_triggers) await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after, result)
+
+        return result
+      })
+    
+      return result
     }
   }
-
-
-  /* -------------------------------------------------------------------------- */
-  /*                               AFTER TRIGGERS                               */
-  /* -------------------------------------------------------------------------- */
-
-  if(endpoint.triggers && !options?.disable_triggers) await run_triggers(db, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, endpoint.triggers, false)
 
   return result
 }

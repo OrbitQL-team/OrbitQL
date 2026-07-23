@@ -48,13 +48,18 @@
     "@types/prompts": "^2.4.9",
     "@vercel/postgres": "^0.10.0",
     "better-sqlite3": "^12.9.0",
-    "drizzle-orm": "^0.45.2",
+    "mssql": "^11.0.1",
     "mysql2": "^3.22.2",
     "pg": "^8.20.0",
     "postgres": "^3.4.9",
     "prompts": "^2.4.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "drizzle-orm": "^1.0.0-beta.22",
+    "drizzle-kit": "^1.0.0-beta.22"
   }
 }

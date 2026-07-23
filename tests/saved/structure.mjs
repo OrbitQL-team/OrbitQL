@@ -7,7 +7,6 @@ export default {
           "allow": [
             "id",
             "name",
-            "email",
             "surname"
           ],
           "disallowed": "",
@@ -31,46 +30,19 @@ export default {
           "allowed": {
             "field": [
               "name",
-              "surname"
+              "surname",
+              "id"
             ],
             "where": {
               "and": [
                 {
-                  "if": {
-                    "when": {
-                      "value": "$data.name",
-                      "op": "IS NOT NULL"
-                    },
-                    "do": true,
-                    "else": false
-                  },
-                },
-                {
-                  "if": {
-                    "when": {
-                      "value": "$data.surname",
-                      "op": "IS NOT NULL"
-                    },
-                    "do": true,
-                    "else": false
-                  },
-                },
-                {
-                  "field": "id",
-                  "op": "=",
-                  "value": "$user.id"
-                },
-                {
-                  "left_value": "$user.have_access",
-                  "op": "=",
-                  "value": 1
+                  "field": "name",
+                  "op": "IS NOT NULL"
                 }
               ]
             }
           },
-          "disallowed": [
-            "*"
-          ]
+          "disallowed": []
         },
         "admin": {
           "allowed": {
@@ -81,9 +53,24 @@ export default {
               "value": 1
             }
           },
-          "disallowed": "",
-          "returning": true
+          "returning": true,
         },
+        "triggers": [
+          {
+            "type": "AFTER",
+            "query": {
+              "type": "POST",
+              "data": {
+                "name": "new row",
+                "surname": "$before.surname",
+                "email": "$after.email",
+                "have_access": "$after.have_access",
+                "age": "$before.age",
+              },
+              "table": "users",
+            }
+          },
+        ]
       },
       {
         "type": "POST",
@@ -98,32 +85,32 @@ export default {
         "triggers": [
           {
             "type": "BEFORE",
-            "level": "ROW",
             "query": {
               "set": {
                 "field": "name",
                 "when": {
-                  "field": "name",
-                  "op": "IS NULL"
+                  "left_value": "$data.name",
+                  "op": "!=",
+                  "value": "wela"
                 },
                 "value": "wela"
               }
             }
           },
           {
-            "type": "BEFORE",
-            "level": "ROW",
+            "type": "AFTER",
             "query": {
-              "set": {
-                "field": "surname",
-                "when": {
-                  "field": "surname",
-                  "op": "IS NULL"
-                },
-                "value": "wela"
-              }
+              "type": "POST",
+              "data": {
+                "name": "new row",
+                "surname": "new row",
+                "email": "$after.email",
+                "have_access": "$after.have_access",
+                "age": "$after.age",
+              },
+              "table": "users",
             }
-          }
+          },
         ]
       },
       {
@@ -240,27 +227,13 @@ export default {
               "set": {
                 "field": "name",
                 "when": {
-                  "field": "name",
+                  "value": "$data.name",
                   "op": "IS NULL"
                 },
                 "value": "wela"
               }
             }
           },
-          {
-            "type": "BEFORE",
-            "level": "ROW",
-            "query": {
-              "set": {
-                "field": "surname",
-                "when": {
-                  "field": "surname",
-                  "op": "IS NULL"
-                },
-                "value": "wela"
-              }
-            }
-          }
         ]
       },
       {
@@ -272,5 +245,37 @@ export default {
       }
     ],
     "table": "users"
-  }
+  },
+  "test": {
+    "endpoints": [
+      {
+        "type": "POST",
+        "user": {
+          "allowed": [],
+          "disallowed": []
+        },
+        "admin": {
+          "allowed": "*",
+          "returning": true
+        },
+        "triggers": [
+          {
+            "type": "BEFORE",
+            "level": "ROW",
+            "query": {
+              "set": {
+                "field": "name",
+                "when": {
+                  "value": "$data.name",
+                  "op": "IS NULL"
+                },
+                "value": "wela"
+              }
+            }
+          },
+        ]
+      },
+    ],
+    "table": "test"
+  },
 };

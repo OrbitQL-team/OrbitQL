@@ -50,6 +50,10 @@ export const databaseMap = {
   gel: [
     { title: 'Gel Database', value: 'gel' },
     { title: 'Gel JS', value: 'gel-js' }
+  ],
+
+  mssql: [
+    { title: 'MSSQL', value: 'mssql' },
   ]
 };
 

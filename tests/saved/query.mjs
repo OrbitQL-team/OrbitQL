@@ -1,68 +1,113 @@
+// export default {
+//   phases: [
+//     {
+//       mode: 'transaction',
+//       queries: [
+//         {
+//           type: "PUT",
+//           data: {
+//             "name": "prova",
+//             "surname": "prova",
+//             "email": "prova@prova.prova",
+//             "have_access": 1,
+//             "age": 18,
+//           },
+//           table: "users",
+//           where: {
+//             field: "id",
+//             op: "=",
+//             value: 1
+//           }
+//         },
+//         {
+//           type: "POST",
+//           data: {
+//             "name": "prova",
+//             "surname": null,
+//             "email": "prova@prova.prova",
+//             "have_access": 1,
+//             "age": 18,
+//           },
+//           table: "users",
+//         }
+//       ]
+//     },
+//     {
+//       mode: 'query',
+//       queries: [
+//         {
+//           type: "PUT",
+//           data: {
+//             "name": "prova 2",
+//             "surname": "prova 2",
+//             "email": "prova@prova.prova 2",
+//             "have_access": 1,
+//             "age": 18,
+//           },
+//           table: "users",
+//           where: {
+//             field: "id",
+//             op: "=",
+//             value: 1
+//           }
+//         },
+//         {
+//           type: "POST",
+//           data: {
+//             "name": "prova 2",
+//             "surname": null,
+//             "email": "prova@prova.prova 2",
+//             "have_access": 1,
+//             "age": 19,
+//           },
+//           table: "users",
+//         }
+//       ]
+//     },
+//   ]
+// };
+
+// export default {
+//   type: "PUT",
+//   data: {
+//     "name": "edited",
+//     "surname": 'edited',
+//     "email": "edited",
+//     "have_access": 0,
+//     "age": 26,
+//   },
+//   table: "users",
+//   where: {
+//     'field': 'id',
+//     'op': '=',
+//     'value': 64
+//   }
+// }
+
+
 export default {
   phases: [
-    {
-      mode: 'transaction',
-      queries: [
-        {
-          type: "PUT",
-          data: {
-            "name": "prova",
-            "surname": "prova",
-            "email": "prova@prova.prova",
-            "have_access": 1,
-            "age": 18,
-          },
-          table: "users",
-          where: {
-            field: "id",
-            op: "=",
-            value: 1
-          }
-        },
-        {
-          type: "POST",
-          data: {
-            "name": "prova",
-            "surname": null,
-            "email": "prova@prova.prova",
-            "have_access": 1,
-            "age": 18,
-          },
-          table: "users",
-        }
-      ]
-    },
     {
       mode: 'query',
       queries: [
         {
+          type: "GET",
+          select: "*",
+          table: "users",
+        },
+        {
           type: "PUT",
           data: {
-            "name": "prova 2",
-            "surname": "prova 2",
-            "email": "prova@prova.prova 2",
-            "have_access": 1,
-            "age": 18,
+            "name": 'null'
           },
           table: "users",
           where: {
             field: "id",
-            op: "=",
-            value: 1
+            op: '=',
+            value: "63"
           }
-        },
-        {
-          type: "POST",
-          data: {
-            "name": "prova 2",
-            "surname": null,
-            "email": "prova@prova.prova 2",
-            "have_access": 1,
-            "age": 19,
-          },
-          table: "users",
         }
       ]
-    },
+    }
   ]
-};
+}

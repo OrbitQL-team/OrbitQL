@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import build_query from "../../src";
+import compile from "../../src";
 
 export default async function select(
   db,
@@ -18,7 +18,7 @@ export default async function select(
     }
   };
 
-  const built_query = await build_query(
+  const built_query = await compile(
     db,
     query,
     local_user,
