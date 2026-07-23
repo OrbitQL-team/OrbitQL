@@ -62,6 +62,7 @@ export default async function compile(
           data: res
         };
       } catch (err) {
+        console.log(err)
         return {
           ok: false,
           error: err

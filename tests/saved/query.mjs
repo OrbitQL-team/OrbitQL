@@ -86,28 +86,7 @@
 
 
 export default {
-  phases: [
-    {
-      mode: 'query',
-      queries: [
-        {
-          type: "GET",
-          select: "*",
-          table: "users",
-        },
-        {
-          type: "PUT",
-          data: {
-            "name": 'null'
-          },
-          table: "users",
-          where: {
-            field: "id",
-            op: '=',
-            value: "63"
-          }
-        }
-      ]
-    }
-  ]
+  type: "GET",
+  select: "*",
+  table: "users",
 }
