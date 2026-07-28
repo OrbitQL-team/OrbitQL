@@ -12,10 +12,20 @@ export default async function select(
     select: "*",
     table: "users",
     where: {
-      field: "age",
-      operator: "BETWEEN",
-      start: 13,
-      end: 56,
+      or: [
+        {
+          field: "age",
+          operator: "BETWEEN",
+          start: 13,
+          end: 56,
+        },
+        {
+          field: "age",
+          operator: "NOT BETWEEN",
+          start: 10,
+          end: 70,
+        }
+      ]
     },
   };
 
@@ -28,8 +38,6 @@ export default async function select(
   );
 
   const result = await built_query.execute();
-
-  console.log('result: ', result)
 
   expect(result).toBeDefined();
 }

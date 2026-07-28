@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import compile from "../../src";
+import build_query from "../../src";
 
 export default async function select(
   db,
@@ -9,20 +9,15 @@ export default async function select(
 ) {
   const query = {
     type: "GET",
-    select: [
-      "$count.id",
-      "$count_distinct.id",
-      "$avg.age",
-      "$avg_distinct.age",
-      "$max.age",
-      "$min.age",
-      "$sum.age",
-      "$sum_distinct.age",
-    ],
+    select: "*",
     table: "users",
+    where: {
+      "field": "email",
+      "operator": "IS NOT NULL"
+    }
   };
 
-  const built_query = await compile(
+  const built_query = await build_query(
     db,
     query,
     local_user,

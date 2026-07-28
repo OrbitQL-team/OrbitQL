@@ -1,5 +1,5 @@
 import { expect } from "vitest";
-import compile from "../../src";
+import build_query from "../../src";
 
 export default async function select(
   db,
@@ -20,14 +20,19 @@ export default async function select(
         },
         {
           field: 'email',
-          op: 'LIKE',
+          op: 'ILIKE',
           value: '%example.com%'
-        }
+        },
+        {
+          field: 'email',
+          op: 'NOT ILIKE',
+          value: '%@TEST.TEST%'
+        },
       ]
     }
   };
 
-  const built_query = await compile(
+  const built_query = await build_query(
     db,
     query,
     local_user,
