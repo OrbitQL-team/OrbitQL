@@ -1,38 +1,39 @@
 /* -------------------------------------------------------------------------- */
 /*                                   IMPORTS                                  */
 /* -------------------------------------------------------------------------- */
-import { GelDatabase } from "drizzle-orm/gel-core";
-import { MySql2Database } from "drizzle-orm/mysql2";
-import { PlanetScaleDatabase } from "drizzle-orm/planetscale-serverless";
-import { PgDatabase } from "drizzle-orm/pg-core";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { VercelPgDatabase } from "drizzle-orm/vercel-postgres";
-import { LibSQLDatabase } from "drizzle-orm/libsql";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
-import { NeonDatabase } from "drizzle-orm/neon-serverless";
+import { GelDatabase, GelTransaction } from "drizzle-orm/gel-core";
+import { MySql2Database, MySql2Transaction } from "drizzle-orm/mysql2";
+import { PlanetScaleDatabase, PlanetScaleTransaction } from "drizzle-orm/planetscale-serverless";
+import { PgAsyncDatabase, PgAsyncTransaction } from "drizzle-orm/pg-core";
+import { NodePgDatabase, NodePgTransaction } from "drizzle-orm/node-postgres";
+import { VercelPgDatabase, VercelPgTransaction } from "drizzle-orm/vercel-postgres";
+import { LibSQLDatabase, LibSQLTransaction } from "drizzle-orm/libsql";
+import { BetterSQLite3Database, BetterSQLiteTransaction } from "drizzle-orm/better-sqlite3";
+import { SQLiteBunDatabase } from "drizzle-orm/bun-sqlite";
+import { NeonDatabase, NeonTransaction } from "drizzle-orm/neon-serverless";
 import { GelJsDatabase } from "drizzle-orm/gel";
 import { AnyD1Database, DrizzleD1Database } from "drizzle-orm/d1";
-import { SQLJsDatabase } from "drizzle-orm/sql-js";
-import { PgliteDatabase } from "drizzle-orm/pglite";
+import { SQLJsDatabase, SQLJsTransaction } from "drizzle-orm/sql-js";
+import { PgliteDatabase, PgliteTransaction } from "drizzle-orm/pglite";
 import { XataHttpDatabase } from "drizzle-orm/xata-http";
 import { NeonHttpDatabase } from "drizzle-orm/neon-http";
-import { OPSQLiteDatabase } from "drizzle-orm/op-sqlite";
+import { OPSQLiteDatabase, OPSQLiteTransaction } from "drizzle-orm/op-sqlite";
 import { PgRemoteDatabase } from "drizzle-orm/pg-proxy";
 import { PrismaPgDatabase } from "drizzle-orm/prisma/pg";
 import { DrizzleSqliteDODatabase } from "drizzle-orm/durable-sqlite";
 import { SingleStoreRemoteDatabase } from "drizzle-orm/singlestore-proxy";
 import { SingleStoreDatabase } from "drizzle-orm/singlestore";
-import { TiDBServerlessDatabase } from "drizzle-orm/tidb-serverless";
+import { TiDBServerlessDatabase, TiDBServerlessTransaction } from "drizzle-orm/tidb-serverless";
 import { SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 import { PrismaSQLiteDatabase } from "drizzle-orm/prisma/sqlite";
-import { AwsDataApiPgDatabase } from "drizzle-orm/aws-data-api/pg";
+import { AwsDataApiPgDatabase, AwsDataApiTransaction } from "drizzle-orm/aws-data-api/pg";
 import { PrismaMySqlDatabase } from "drizzle-orm/prisma/mysql";
 import { MySqlRemoteDatabase } from "drizzle-orm/mysql-proxy";
-import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { PostgresJsDatabase, PostgresJsTransaction } from "drizzle-orm/postgres-js";
 import { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
-import { ExpoSQLiteDatabase } from "drizzle-orm/expo-sqlite";
-import { MySqlDatabase } from "drizzle-orm/mysql-core";
+import { ExpoSQLiteDatabase, ExpoSQLiteTransaction } from "drizzle-orm/expo-sqlite";
+import { MySqlDatabase, MySqlTransaction } from "drizzle-orm/mysql-core";
+import { SingleStoreTransaction } from "drizzle-orm/singlestore-core";
 
 /* -------------------------------------------------------------------------- */
 /*                               DATABASE TYPES                               */
@@ -42,7 +43,7 @@ export type Database =
   | GelDatabase<any, any, any>
   | MySql2Database
   | PlanetScaleDatabase
-  | PgDatabase<any, any, any>
+  | PgAsyncDatabase<any, any, any>
   | NodePgDatabase
   | NeonDatabase
   | VercelPgDatabase
@@ -71,7 +72,28 @@ export type Database =
   | PostgresJsDatabase
   | BaseSQLiteDatabase<any, any, any, any>
   | ExpoSQLiteDatabase
-  | BunSQLiteDatabase;
+  | SQLiteBunDatabase;
+
+export type Transaction =
+  | GelTransaction<any, any, any>
+  | MySql2Transaction<any, any, any>
+  | PlanetScaleTransaction<any, any, any>
+  | PgAsyncTransaction<any, any, any>
+  | NodePgTransaction<any, any, any>
+  | NeonTransaction<any, any, any>
+  | VercelPgTransaction<any, any, any>
+  | LibSQLTransaction<any, any, any>
+  | BetterSQLiteTransaction<any, any, any>
+  | MySqlTransaction<any, any, any>
+  | SQLJsTransaction<any, any, any>
+  | PgliteTransaction<any, any, any>
+  | OPSQLiteTransaction<any, any, any>
+  | SingleStoreTransaction<any, any, any>
+  | TiDBServerlessTransaction<any, any, any>
+  | AwsDataApiTransaction<any, any, any>
+  | SingleStoreTransaction<any, any>
+  | PostgresJsTransaction<any, any, any>
+  | ExpoSQLiteTransaction<any, any, any>
 
 /* -------------------------------------------------------------------------- */
 /*                                  STRUCTURE                                 */
@@ -85,28 +107,28 @@ export type TableStructure = {
 };
 
 export const BuildWhereOptionsDefaults:BuildWhereOptions = {
-  disable_triggers: false,
-  after: false
+  disable_triggers: false
 }
 
 export type BuildWhereOptions = {
-  disable_triggers?: boolean,
-  after?: number | boolean
+  disable_triggers?: boolean
 }
 
-export type Set_Value = {
-  set: {
-    field: string;
-    when: WhereCondition | SubqueryCondition;
-    value: any;
-    else_value?: any;
-  }
+export type SetCondition = {
+  field: string;
+  when: WhereCondition | SubqueryCondition;
+  value: any;
+  else_value?: any;
+}
+
+export type SetValue = {
+  set: SetCondition
 }
 
 export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
 export type TriggerStructure = {
   type: "BEFORE" | "AFTER";
-  query: StructuredQuery & IfCondition & Set_Value;
+  query: StructuredQuery & IfCondition & SetValue;
 }
 
 // Endpoint structure
@@ -188,12 +210,45 @@ export const SAFE_OPERATORS = [
 export type SafeOperator = typeof SAFE_OPERATORS[number];
 
 /* -------------------------------------------------------------------------- */
+/*                                   RESULT                                   */
+/* -------------------------------------------------------------------------- */
+
+export type CompileExecutionResult<T = any> = {
+  ok: boolean;
+  data?: T[];
+  error?: unknown[] | unknown;
+};
+
+export type ExecuteFunction<T = any> = () => Promise<CompileExecutionResult<T>>;
+
+export type CompileResult<T = any> = {
+  execute: ExecuteFunction<T>;
+};
+
+/* -------------------------------------------------------------------------- */
+/*                                   REQUEST                                  */
+/* -------------------------------------------------------------------------- */
+
+export type PhaseTypes = "TRANSACTION" | "QUERY"
+
+export type QueryPhase = {
+  mode: PhaseTypes;
+  queries: StructuredQuery[];
+};
+
+export type Request =
+  | StructuredQuery
+  | {
+      phases: QueryPhase[];
+    };
+
+/* -------------------------------------------------------------------------- */
 /*                              QUERY/CONDITIONS                              */
 /* -------------------------------------------------------------------------- */
 
 export type StructuredQuery = {
   table: keyof Structure;
-  type: "GET" | "PUT" | "DELETE" | "POST";
+  type: EndpointType;
   select?: string[] | string;
   join?: Join[];
   where?: WhereCondition;
@@ -201,11 +256,7 @@ export type StructuredQuery = {
   group_by?: string[] | string;
   order_by?: string[] | string;
   returning?: string[] | string;
-  
-  /* Queries executed after this one */
-  after?: StructuredQuery[];
-
-  [key: string]: any;
+  limit?: number;
 };
 
 export type Join = {

@@ -1,5 +1,5 @@
 import * as schema from './schema';
-import build_query from "../src";
+import compile from "../src";
 import { NONE, StructuredQuery, TableStructure } from "../src/types";
 import { it, expect } from "vitest";
 import { getDB } from "./runner/db-connection.mjs"
@@ -49,7 +49,7 @@ it("should measure build and execute performance", async () => {
   // Measure build time
   const buildStart = performance.now();
 
-  const built_query = await build_query(
+  const built_query = await compile(
     db,
     query,
     local_user,
@@ -66,7 +66,10 @@ it("should measure build and execute performance", async () => {
 
   const execTime = performance.now() - execStart;
 
-  console.log("Query result:", result);
+  console.log(
+    "Query result:\n",
+    JSON.stringify(result, null, 2)
+  );
   console.log(`Build time: ${buildTime.toFixed(2)} ms`);
   console.log(`Execute time: ${execTime.toFixed(2)} ms`);
 

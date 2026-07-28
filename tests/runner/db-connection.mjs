@@ -9,6 +9,7 @@ import { drizzle as libsqlDrizzle } from "drizzle-orm/libsql";
 import { drizzle as d1Drizzle } from "drizzle-orm/d1";
 import { drizzle as betterSqliteDrizzle } from "drizzle-orm/better-sqlite3";
 import { drizzle as pgliteDrizzle } from "drizzle-orm/pglite";
+import { drizzle as mssqlDrizzle } from 'drizzle-orm/node-mssql';
 
 export async function createConnection(db_select, config = {}) {
   const onCancel = () => {
@@ -61,7 +62,11 @@ export async function getDB(family, db_address, user_name, password, db_name, sc
         port: 3306,
       });
 
-      db = mysqlDrizzle(pool, { schema, mode: 'default' });
+      db = mysqlDrizzle({
+        client: pool,
+        schema,
+        mode: "default",
+      });
       break;
     }
 
@@ -76,7 +81,11 @@ export async function getDB(family, db_address, user_name, password, db_name, sc
         port: 5432,
       });
 
-      db = pgDrizzle(pool, { schema, mode: 'default' });
+      db = pgDrizzle({
+        client: pool,
+        schema,
+        mode: "default",
+      });
       break;
     }
 
@@ -147,6 +156,29 @@ export async function getDB(family, db_address, user_name, password, db_name, sc
       const client = new PGlite();
 
       db = pgliteDrizzle(client, { schema, mode: 'default' });
+      break;
+    }
+
+    case "mssql": {
+      const mssqlModule = await import("mssql");
+      const mssql = mssqlModule.default ?? mssqlModule;
+
+      const pool = await mssql.connect({
+        user: user_name,
+        password: password,
+        server: db_address, // MUST be string like "localhost"
+        database: db_name,
+        port: 1433,
+        options: {
+          encrypt: true,
+          trustServerCertificate: true,
+        },
+      });
+
+      const { drizzle } = await import("drizzle-orm/node-mssql");
+
+      db = drizzle({ client: pool });
+
       break;
     }
 
