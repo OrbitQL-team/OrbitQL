@@ -126,10 +126,15 @@ export type SetValue = {
 }
 
 export type EndpointType = "GET" | "PUT" | "POST" | "DELETE";
+export type TriggerQuery =
+	| SetValue
+	| IfCondition & SetValue
+	| StructuredQuery;
+
 export type TriggerStructure = {
-  type: "BEFORE" | "AFTER";
-  query: StructuredQuery & IfCondition & SetValue;
-}
+	type: "BEFORE" | "AFTER";
+	query: TriggerQuery;
+};
 
 // Endpoint structure
 export type Endpoint = {
@@ -149,19 +154,19 @@ export type Endpoint = {
 /*                                 PERMISSIONS                                */
 /* -------------------------------------------------------------------------- */
 
-type AllowedAliases =
+export type AllowedAliases =
   | { allowed: FieldPermission; allow?: never }
   | { allow: FieldPermission; allowed?: never };
 
-type DisallowedAliases =
+export type DisallowedAliases =
   | { disallowed?: FieldPermission; deny?: never }
   | { deny?: FieldPermission; disallowed?: never };
 
-type Limit = { limit?: number };
+export type Limit = { limit?: number };
 
-type OrderBy = { order_by?: string[] | string };
+export type OrderBy = { order_by?: string[] | string };
 
-type GroupBy = { group_by?: string[] | string };
+export type GroupBy = { group_by?: string[] | string };
 
 export type Returning = {
   returning?: AllowedAliasesReturning & DisallowedAliasesReturning & boolean;
@@ -265,7 +270,7 @@ export type Join = {
   on: Record<string, string> | WhereCondition;
 };
 
-type OperatorAlias =
+export type OperatorAlias =
   | { operator: SafeOperator; op?: never }
   | { op: SafeOperator; operator?: never };
 

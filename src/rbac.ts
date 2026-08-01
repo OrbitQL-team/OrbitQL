@@ -619,69 +619,58 @@ export function toArray<T>(v: T | T[] | null | undefined): T[] {
   return Array.isArray(v) ? v : [v];
 }
 
-// * Checkes if the field is accepted inside of structure
 function matchesField(field: string, rule: string): boolean {
-    if (rule === "*") return true;
-    else if(rule === field) return true
-    return false
+	if (rule === "*") return true;
+	return rule === field;
 }
 
-// * Combines allowed and not allowed permission to check if allowed
 function matchesPermission(
-    field: string,
-    permission?: FieldPermission
-): {result: boolean, matched_field: any} {
-    if (!permission) return { result: false, matched_field: null };
+	field: string,
+	permission?: FieldPermission
+): boolean {
+	if (!permission) return false;
 
-    if(typeof permission == 'string') {
-        return { result: matchesField(field, permission), matched_field: field };
-    }
+	if (typeof permission === "string") {
+		return matchesField(field, permission);
+	}
 
-    if (Array.isArray(permission)) {
-        for(let rule of permission) {
-            const result = matchesField(field, rule)
-            console.log('RESULT:', result)
-            if(result) return { result, matched_field: field }
-        }
-        return { result: false, matched_field: field };
-    }
+	if (Array.isArray(permission)) {
+		return permission.some(rule => matchesField(field, rule));
+	}
 
-    if (typeof permission === "object") {
-        const rule = permission.field;
+	if (typeof permission === "object") {
+		const rule = permission.field;
 
-        if (Array.isArray(rule)) {
-            if (rule.includes("*")) return { result: true, matched_field: "*" };
-            for(let r of rule) {
-                const result = matchesField(field, r)
-                console.log(result)
-                if(result) return { result, matched_field: field }
-            }
-            return { result: false, matched_field: field };
-        }
+		if (Array.isArray(rule)) {
+			return rule.some(r => matchesField(field, r));
+		}
 
-        return { result: matchesField(field, rule), matched_field: field }
-    }
+		return matchesField(field, rule);
+	}
 
-    return { result: false, matched_field: field };
+	return false;
 }
 
-// * Resolve if field is allowed
 export function resolve_allowed_fields(
-    field: string,
-    allowed?: FieldPermission,
-    disallowed?: FieldPermission
+	field: string,
+	allowed?: FieldPermission,
+	disallowed?: FieldPermission
 ): boolean {
+	// Field must match allowed rules
+	const allowedMatch = matchesPermission(field, allowed);
 
-    const { result: isAllowed } = matchesPermission(field, allowed);
-    if (!isAllowed) return false;
+	if (!allowedMatch) {
+		return false;
+	}
 
-    const { result: isDisallowed, matched_field: disallowed_matched_field } = matchesPermission(field, disallowed);
-    if (isDisallowed) {
-        if(isAllowed && disallowed_matched_field == "*") return true
-        else return false
-    }
+	// Field must NOT match disallowed rules
+	const disallowedMatch = matchesPermission(field, disallowed);
 
-    return true;
+	if (disallowedMatch) {
+		return false;
+	}
+
+	return true;
 }
 
 /* -------------------------------------------------------------------------- */

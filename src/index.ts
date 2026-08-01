@@ -36,7 +36,7 @@ export default async function compile(
         );
 
         return {
-          ok: results.every((r:any) => r.ok),
+          ok: results.every((r: any) => r.ok),
           data: results
         };
       }
@@ -167,7 +167,7 @@ export async function build_batch(
 /* -------------------------------------------------------------------------- */
 /*                              BUILDER FOR QUERY                             */
 /* -------------------------------------------------------------------------- */
-export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role:string, structure: Structure, options:BuildWhereOptions = {}, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
+export async function build_query(db: Database | Transaction, query: StructuredQuery, user: any, role: string, structure: Structure, options: BuildWhereOptions = {}, before_values?: any | any[], after_values?: any | any[], result_values?: any | any[]) {
   /* -------------------------------------------------------------------------- */
   /*                              TABLE RETRIEVING                              */
   /* -------------------------------------------------------------------------- */
@@ -180,13 +180,13 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   /* -------------------------------------------------------------------------- */
   /*                             ENDPOINT RETRIEVING                            */
   /* -------------------------------------------------------------------------- */
-  const endpoint = tableStruct.endpoints.find((e:any) => e.type.toUpperCase() === query_type);
+  const endpoint = tableStruct.endpoints.find((e: any) => e.type.toUpperCase() === query_type);
   if (!endpoint) throw new Error(`${query_type} not allowed on ${tableName}`);
 
-  if(!endpoint[role]) {
+  if (!endpoint[role]) {
     throw new Error(`Role '${role}' not allowed to perform ${query_type} on ${tableName}`);
   }
-  
+
   /* -------------------------------------------------------------------------- */
   /*                                    ROLES                                   */
   /* -------------------------------------------------------------------------- */
@@ -194,22 +194,22 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   if (typeof rolePermissions === "string" || Array.isArray(rolePermissions)) {
     throw new Error(`Invalid role permissions format for role '${role}'`);
   }
-  
+
   const allowed =
-      'allowed' in rolePermissions
-          ? rolePermissions.allowed ?? []
-          : 'allow' in rolePermissions
-          ? rolePermissions.allow ?? []
-          : [];
+    'allowed' in rolePermissions
+      ? rolePermissions.allowed ?? []
+      : 'allow' in rolePermissions
+        ? rolePermissions.allow ?? []
+        : [];
 
   const disallowed =
-      'disallowed' in rolePermissions
-          ? rolePermissions.disallowed ?? []
-          : 'deny' in rolePermissions
-          ? rolePermissions.deny ?? []
-          : [];
-  
-  if(is_allowed_empty(allowed)) throw new Error("Not allowed");
+    'disallowed' in rolePermissions
+      ? rolePermissions.disallowed ?? []
+      : 'deny' in rolePermissions
+        ? rolePermissions.deny ?? []
+        : [];
+
+  if (is_allowed_empty(allowed)) throw new Error("Not allowed");
 
   /* -------------------------------------------------------------------------- */
   /*               QUERY VALIDATION CHECK BEFORE RUNNING THE QUERY              */
@@ -230,19 +230,19 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
     };
   } else if (query_where) {
     combinedWhere = query_where;
-  } else if(aclWhere) {
+  } else if (aclWhere) {
     combinedWhere = aclWhere
   }
 
   if (combinedWhere && (typeof allowed != 'string' && !Array.isArray(allowed) || typeof disallowed != 'string' && !Array.isArray(disallowed))) {
     const has_been_accepted = await if_condition(db, combinedWhere, tableMap, user, role, structure, query, default_table)
-    if(!has_been_accepted) throw new Error("Not allowed or Empty")
+    if (!has_been_accepted) throw new Error("Not allowed or Empty")
   }
 
   let limit = null
-  if(query.limit) limit = query.limit
+  if (query.limit) limit = query.limit
 
-  if(rolePermissions.limit && (limit === null || limit > rolePermissions.limit)) {
+  if (rolePermissions.limit && (limit === null || limit > rolePermissions.limit)) {
     limit = rolePermissions.limit
   }
 
@@ -254,30 +254,31 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
 
   let user_select_data_fields: Record<string, any> = {};
 
-  if(query_type == "GET") {
-    if("select" in query && query.select) {
+  if (query_type == "GET") {
+    if ("select" in query && query.select) {
       user_select_data_fields = resolve_fields(structure, query.select, query_type, role, query.table, tableMap);
       user_select_data_fields = alias_selected_fields(user_select_data_fields);
-    }else throw Error("Select is necessary on GET request")
+    } else throw Error("Select is necessary on GET request")
   }
-  if(query_type == "PUT" || query_type == "POST") {
-    if("data" in query && query.data) {
+  if (query_type == "DELETE") {
+    user_select_data_fields = resolve_fields(structure, "*", query_type, role, query.table, tableMap);
+    user_select_data_fields = alias_selected_fields(user_select_data_fields);
+  }
+  if (query_type == "PUT" || query_type == "POST") {
+    if ("data" in query && query.data) {
       user_select_data_fields = resolve_data(structure, user, query, query.data, query_type, role, query.table, tableMap, before_values, after_values, result_values);
       user_select_data_fields = stripPrefixes(user_select_data_fields);
-    }else throw Error("Data is necessary on PUT/POST requests")
+    } else throw Error("Data is necessary on PUT/POST requests")
   }
 
-  let result:any
+  let result: any
 
   console.log(user_select_data_fields)
 
   let selected_data_fields: Record<string, any> | Array<Record<string, any>> =
-    Array.isArray(user_select_data_fields)
+      Array.isArray(user_select_data_fields)
         ? [...user_select_data_fields]
         : { ...user_select_data_fields };
-
-  console.log(selected_data_fields)
-
 
   if (!Object.keys(selected_data_fields).length) {
     throw new Error("No allowed fields");
@@ -290,9 +291,9 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
   const { before_triggers, after_triggers } = endpoint.triggers ? endpoint.triggers.reduce(
     (acc, trigger) => {
       if (trigger.type.toUpperCase() === 'AFTER') {
-        if(acc.after_triggers) acc.after_triggers.push(trigger);
+        if (acc.after_triggers) acc.after_triggers.push(trigger);
       } else if (trigger.type.toUpperCase() === 'BEFORE') {
-        if(acc.before_triggers) acc.before_triggers.push(trigger);
+        if (acc.before_triggers) acc.before_triggers.push(trigger);
       }
       return acc;
     },
@@ -303,35 +304,35 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
 
   result = {
     execute: async () => {
-      let before:any = null
-      let after:any = null
+      let before: any = null
+      let after: any = null
 
       /* -------------------------------------------------------------------------- */
       /*                               QUERY EXECUTION                              */
       /* -------------------------------------------------------------------------- */
 
-      let result = await db.transaction(async (tx: Transaction)=>{
+      let result = await db.transaction(async (tx: Transaction) => {
 
         /* -------------------------------------------------------------------------- */
         /*                               BEFORE TRIGGERS                              */
         /* -------------------------------------------------------------------------- */
 
-        if(before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
+        if (before_triggers && !options?.disable_triggers) selected_data_fields = await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, before_triggers, false)
 
 
         /* -------------------------------------------------------------------------- */
         /*                           RUN QUERY BASED ON TYPE                          */
         /* -------------------------------------------------------------------------- */
-        
+
         let result
 
-        switch(query_type.toUpperCase()) {
+        switch (query_type.toUpperCase()) {
           case 'GET': {
             result = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit)
             break;
           }
           case 'PUT': {
-            if(has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            if (has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
             const res = await put_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, selected_data_fields, built_where, tableName, limit, has_after_triggers)
             result = res.result;
             after = res.after;
@@ -344,7 +345,7 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
             break;
           }
           case 'DELETE': {
-            if(has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
+            if (has_after_triggers) before = await get_method(tx, query, user, structure, rolePermissions, role, tableStruct, tableMap, undefined, built_where, tableName, limit)
             result = await delete_method(tx, query, structure, rolePermissions, role, tableStruct, tableMap, built_where, tableName, limit)
             break;
           }
@@ -356,14 +357,59 @@ export async function build_query(db: Database | Transaction, query: StructuredQ
         /* -------------------------------------------------------------------------- */
         /*                               AFTER TRIGGERS                               */
         /* -------------------------------------------------------------------------- */
-        if(after_triggers && has_after_triggers) await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after, result)
+        if (after_triggers && has_after_triggers) await run_triggers(tx, options, query, user, role, structure, tableMap, tableStruct, user_select_data_fields, after_triggers, true, before, after, result)
 
         return result
       })
-    
+
       return result
     }
   }
 
   return result
 }
+
+export type {
+	Database,
+	Transaction,
+	Structure,
+	TableStructure,
+	BuildWhereOptions,
+	SetCondition,
+	SetValue,
+	EndpointType,
+	TriggerStructure,
+	Endpoint,
+	AllowedAliases,
+	DisallowedAliases,
+	Limit,
+	OrderBy,
+	GroupBy,
+	Returning,
+	RolePermissions,
+	AllowedAliasesReturning,
+	DisallowedAliasesReturning,
+	FieldPermission,
+	SafeOperator,
+	CompileExecutionResult,
+	ExecuteFunction,
+	CompileResult,
+	PhaseTypes,
+	QueryPhase,
+	Request,
+	StructuredQuery,
+	Join,
+	OperatorAlias,
+	SimpleCondition,
+	BetweenCondition,
+	NotBetweenCondition,
+	ExistsCondition,
+	NotExistsCondition,
+	NotCondition,
+	AndCondition,
+	OrCondition,
+	IfCondition,
+	NestedCondition,
+	WhereCondition,
+	SubqueryCondition
+} from "./types.ts";
