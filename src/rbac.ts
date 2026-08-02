@@ -952,7 +952,7 @@ export function resolve_data(
 }
 
 export function requests_data(
-    cond: SimpleCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition,
+    cond: WhereCondition,
     kind: string
 ): boolean {
     return Object.entries(cond).some(([_, value]) => {
@@ -1171,7 +1171,7 @@ export function validate_where_fields(
   if ("if" in newCond && newCond.if && typeof newCond.if === "object") {
     const newIf = { ...newCond.if };
 
-    if (newIf.when) {
+    if (newIf.when != undefined) {
       newIf.when = validate_where_fields(
         newIf.when,
         tableMap,

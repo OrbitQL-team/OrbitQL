@@ -14,7 +14,7 @@ import {
   notBetween,
   getColumns
 } from "drizzle-orm";
-import { Database, WhereCondition, type StructuredQuery, type FieldPermission, Structure, TableStructure, RolePermissions, TriggerStructure, BuildWhereOptions, IfCondition, ExistsCondition, NotExistsCondition, Returning, Transaction, SetCondition } from "./types.ts";
+import { type Database, type WhereCondition, type StructuredQuery, type FieldPermission, type Structure, type TableStructure, type RolePermissions, type TriggerStructure, type BuildWhereOptions, type IfCondition, type ExistsCondition, type NotExistsCondition, type Returning, type Transaction, type SetCondition } from "./types.ts";
 import { alias_selected_fields, is_op_type, requests_data, resolve_fields, resolve_group_by_fields, resolve_order_by_fields, resolve_returning_fields, resolveCustomValue, toArray } from "./rbac";
 import { build_query } from "./index.ts";
 
@@ -92,12 +92,12 @@ async function or_condition(parts: any[]) {
 async function if_conditions(db: Database | Transaction, cond: IfCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   let condition:any = sql``
   const when_condition = await if_condition(db, cond.if.when, tableMap, user, role, structure, query, default_table)
-  if("do" in cond.if) {
+  if(cond.if != undefined &&"do" in cond.if) {
     if(when_condition) {
       let do_condition
       if(typeof cond.if.do == 'function') throw Error('Function not allowed in where condition')
       if(typeof cond.if.do == 'object') {
-        if(("type" in cond.if.do)) throw Error('Structured Query not allowed in where condition')
+        if(cond.if.do != undefined && ("type" in cond.if.do)) throw Error('Structured Query not allowed in where condition')
         else do_condition = await buildWhere(db, cond.if.do, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values)
       }
       else if(typeof cond.if.do == 'boolean') return cond.if.do
@@ -109,7 +109,7 @@ async function if_conditions(db: Database | Transaction, cond: IfCondition, tabl
       let else_condition
       if(typeof cond.if.else == 'function') throw Error('Function not allowed in where condition')
       if(typeof cond.if.else == 'object') {
-        if(("type" in cond.if.else)) throw Error('Structured Query not allowed in where condition')
+        if(cond.if.else != undefined && ("type" in cond.if.else)) throw Error('Structured Query not allowed in where condition')
         else else_condition = await buildWhere(db, cond.if.else, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values)
       }
       else if(typeof cond.if.else == 'boolean') return cond.if.else
@@ -166,7 +166,7 @@ async function not_exists_condition(db: Database | Transaction, cond: NotExistsC
 }
 
 async function in_condition(db: Database | Transaction, left:any, right: any, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
-  if (right && typeof right === "object" && "select" in right) {
+  if (right != undefined && typeof right === "object" && "select" in right) {
     const subTable = tableMap[right.from];
     if (!subTable) throw new Error(`Table '${right.from}' not found`);
     let fields = resolve_fields(structure, right.select, 'GET', role, right.from, tableMap);
@@ -187,7 +187,7 @@ async function in_condition(db: Database | Transaction, left:any, right: any, ta
 }
 
 async function not_in_condition(db: Database | Transaction, left:any, right: any, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
-  if (right && typeof right === "object" && "select" in right) {
+  if (right != undefined && typeof right === "object" && "select" in right) {
       const subTable = tableMap[right.from];
       if (!subTable) throw new Error(`Table '${right.from}' not found`);
       let fields = resolve_fields(structure, right.select, 'GET', role, right.from, tableMap);
@@ -213,6 +213,8 @@ async function not_in_condition(db: Database | Transaction, left:any, right: any
 
 export async function buildWhere(db: Database | Transaction, cond: WhereCondition, tableMap: Record<string, any>, user: any, role: string, structure: Structure, query: StructuredQuery, default_table:any, default_table_name: string, custom_data?:Record<string, any>, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]): Promise<any> {
   // Nested AND/OR
+  if(typeof cond == 'boolean') return cond
+  if(cond == undefined) return
   if ("and" in cond && cond.and) {
     let parts = await Promise.all(
       cond.and.map((c) =>
@@ -229,9 +231,9 @@ export async function buildWhere(db: Database | Transaction, cond: WhereConditio
     );
     return await or_condition(parts)
   }
-  else if('if' in cond && cond.if && "when" in cond.if && cond.if.when) {
+  else if('if' in cond && cond.if && "when" in cond.if && cond.if.when != undefined) {
     return await if_conditions(db, cond, tableMap, user, role, structure, query, default_table, default_table_name, before_values, after_values, result_values)
-  }else if('not' in cond && cond.not) {
+  }else if('not' in cond && cond.not != undefined) {
     return not(await buildWhere(db, cond.not, tableMap, user, role, structure, query, default_table, default_table_name, undefined, before_values, after_values, result_values))
   }
 
@@ -412,6 +414,9 @@ export function buildAclWhere(allowed: FieldPermission, disallowed: FieldPermiss
 /* -------------------------------------------------------------------------- */
 
 export async function if_condition(db:Database | Transaction, where_condtion:WhereCondition, table_map:any, user:any, role: string, structure: Structure, query:StructuredQuery, default_table:any, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]):Promise<boolean> {
+  if(typeof where_condtion == "boolean") {
+    return where_condtion
+  }
   let where = await buildWhere(db, where_condtion, table_map, user, role, structure, query, default_table, getTableName(default_table), undefined, before_values, after_values, result_values);
 
   // Start empty SQL object
@@ -594,7 +599,7 @@ export async function put_method(db: Database | Transaction, query: StructuredQu
               const filtered: Record<string, any> = {};
 
               for (const field of allowedFields) {
-                if (field in row) {
+                if (row != undefined && field in row) {
                   filtered[field] = row[field];
                 }
               }
@@ -663,7 +668,7 @@ export async function post_method(db: Database | Transaction, query: StructuredQ
               const filtered: Record<string, any> = {};
 
               for (const field of allowedFields) {
-                if (field in row) {
+                if (row != undefined && field in row) {
                   filtered[field] = row[field];
                 }
               }
@@ -718,7 +723,7 @@ export async function delete_method(db: Database | Transaction, query: Structure
 
 export async function run_triggers(db: Database | Transaction, options:BuildWhereOptions, query: StructuredQuery, user: any, role:string, structure: Structure, tableMap: Record<string, any>, tableStruct:TableStructure, selected_data_fields: Record<string, any>, triggers:TriggerStructure[], after:boolean = false, before_values?:any | any[], after_values?:any | any[], result_values?:any | any[]) {
   for(let trigger of triggers) {
-    if("if" in trigger.query) {
+    if(trigger.query != undefined && "if" in trigger.query) {
       const condition = trigger.query.if
       const when_condition = await if_condition(db, condition.when, tableMap, user, role, structure, query, tableStruct.table)
       if(when_condition && condition.do) {
@@ -759,7 +764,7 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         }
       }
     }
-    if ("set" in trigger.query) {
+    if (trigger.query != undefined && "set" in trigger.query) {
       if (after) {
         console.log('Set not available in after queries')
         continue
@@ -772,26 +777,27 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         i?: number,
         custom_value?: any
       ) {
-        const value = resolveCustomValue(
+        if(!set) return
+        const value = sql`${resolveCustomValue(
           set.value,
           user,
           query,
           tableMap,
           table_name,
           custom_value
-        );
+        )}`
 
         let fallback_value;
 
         if ("else_value" in set) {
-          fallback_value = resolveCustomValue(
+          fallback_value = sql`${resolveCustomValue(
             set.else_value,
             user,
             query,
             tableMap,
             table_name,
             custom_value
-          );
+          )}`
         } else {
           const existing =
             typeof i === "number"
@@ -846,7 +852,7 @@ export async function run_triggers(db: Database | Transaction, options:BuildWher
         }
       }else set_value(set, where, table_name);
     }
-    if("type" in trigger.query) {
+    if(trigger.query != undefined && "type" in trigger.query) {
       try{
         await (await build_query(db, trigger.query, user, role, structure, {
           disable_triggers: true,

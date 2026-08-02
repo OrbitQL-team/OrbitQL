@@ -393,7 +393,7 @@ export type IfCondition = {
 export type NestedCondition = AndCondition | OrCondition | IfCondition | NotCondition;
 
 // A WhereCondition can be simple or nested
-export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition;
+export type WhereCondition = SimpleCondition | NestedCondition | ExistsCondition | NotExistsCondition | BetweenCondition | NotBetweenCondition | boolean;
 
 // Subquery structure for IN conditions
 export type SubqueryCondition = {
