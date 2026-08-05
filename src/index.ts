@@ -7,7 +7,7 @@ import { getTableName } from "drizzle-orm";
 /*                               REQUEST HANDLER                              */
 /* -------------------------------------------------------------------------- */
 
-export default async function compile(
+export async function compile(
   db: Database | Transaction,
   request: Request,
   user: any,
@@ -71,7 +71,6 @@ export default async function compile(
     }
   };
 }
-
 /* -------------------------------------------------------------------------- */
 /*                                QUERY BATCHER                               */
 /* -------------------------------------------------------------------------- */
@@ -413,3 +412,6 @@ export type {
 	WhereCondition,
 	SubqueryCondition
 } from "./types.js";
+
+export default compile;
+export { stripPrefixes } from "./rbac.js";
