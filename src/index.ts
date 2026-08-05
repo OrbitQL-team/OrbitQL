@@ -1,6 +1,6 @@
-import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, QueryPhase, CompileResult } from "./types.ts";
-import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.ts";
-import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.ts";
+import { Database, WhereCondition, StructuredQuery, Structure, BuildWhereOptions, Transaction, Request, QueryPhase, CompileResult } from "./types.js";
+import { resolve_data, resolve_fields, alias_selected_fields, extractTableMap, stripPrefixes, validate_where_fields } from "./rbac.js";
+import { buildAclWhere, buildWhere, delete_method, get_method, if_condition, is_allowed_empty, post_method, put_method, run_triggers } from "./drizzle.js";
 import { getTableName } from "drizzle-orm";
 
 /* -------------------------------------------------------------------------- */
@@ -412,4 +412,4 @@ export type {
 	NestedCondition,
 	WhereCondition,
 	SubqueryCondition
-} from "./types.ts";
+} from "./types.js";

@@ -2,21 +2,29 @@
   "name": "@orbitql/core",
   "version": "0.0.1",
   "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
-  "main": "src/index.ts",
+  "type": "module",
+
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+
   "scripts": {
-    "test": "node tests/runner/test-runner.mjs"
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node tests/runner/test-runner.mjs",
+    "prepublishOnly": "npm run build"
   },
+
   "repository": {
     "type": "git",
     "url": "git+https://github.com/OrbitQL-team/OrbitQL.git"
   },
+
   "keywords": [
     "api",
     "backend",
     "query-engine",
     "data-api",
     "api-builder",
-    "graphql-alternative",
     "declarative-api",
     "query-builder",
     "aggregation",
@@ -31,14 +39,40 @@
     "data-platform",
     "headless-api",
     "drizzle",
-    "drizzle-orm"
+    "drizzle-orm",
+    "pg",
+		"mysql",
+		"singlestore",
+		"postgresql",
+		"postgres",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript",
+		"ts",
+    "orbit",
+    "orbitql"
   ],
-  "author": "Zucchelli Daniele",
-  "license": "SEE LICENSE IN 'LICENSE' file",
+
+  "author": "OrbitQL team",
+  "license": "MIT",
+
   "bugs": {
     "url": "https://github.com/OrbitQL-team/OrbitQL/issues"
   },
+
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+
   "homepage": "https://github.com/OrbitQL-team/OrbitQL#readme",
+
+  "dependencies": {
+    "drizzle-orm": "^1.0.0-beta.22"
+  },
+
   "devDependencies": {
     "@aws-sdk/client-rds-data": "^3.1034.0",
     "@electric-sql/pglite": "^0.4.4",
@@ -53,13 +87,10 @@
     "pg": "^8.20.0",
     "postgres": "^3.4.9",
     "prompts": "^2.4.2",
+    "drizzle-kit": "^1.0.0-beta.22",
     "ts-node": "^10.9.2",
     "tsx": "^4.22.4",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.2"
-  },
-  "dependencies": {
-    "drizzle-orm": "^1.0.0-beta.22",
-    "drizzle-kit": "^1.0.0-beta.22"
   }
 }

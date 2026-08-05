@@ -1,6 +1,6 @@
 import { avg, avgDistinct, count, countDistinct, max, min, sum, sumDistinct } from "drizzle-orm";
 import { asc, desc } from "drizzle-orm";
-import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.ts";
+import { WhereCondition, StructuredQuery, type FieldPermission, type SubqueryCondition, Structure, SimpleCondition, ExistsCondition, NotExistsCondition, BetweenCondition, NotBetweenCondition, AllowedAliasesReturning, DisallowedAliasesReturning } from "./types.js";
 
 
 /* -------------------------------------------------------------------------- */
@@ -1103,8 +1103,8 @@ export function resolveCustomValue(
 
 // * checks operator type
 type ConditionWithOperator<T extends string> =
-  | { operator: T; op?: never }
-  | { op: T; operator?: never }
+  | { operator: T }
+  | { op: T }
 
 export function is_op_type<T extends string>(
   condition:
