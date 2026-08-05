@@ -102,7 +102,7 @@ async function runTests(mode: "sequential" | "parallel" = "sequential") {
   return Promise.all(testFiles.map(runOne));
 }
 
-it("runs Polaris auto test suite", async () => {
+it("runs OrbitQL auto test suite", async () => {
   const results = await runTests(
     run_mode === "parallel" ? "parallel" : "sequential"
   );

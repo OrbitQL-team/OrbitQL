@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Zucchy00/Polaris.git"
+    "url": "git+https://github.com/OrbitQL-team/OrbitQL.git"
   },
   "keywords": [
     "api",
@@ -36,9 +36,9 @@
   "author": "Zucchelli Daniele",
   "license": "SEE LICENSE IN 'LICENSE' file",
   "bugs": {
-    "url": "https://github.com/Zucchy00/Polaris/issues"
+    "url": "https://github.com/OrbitQL-team/OrbitQL/issues"
   },
-  "homepage": "https://github.com/Zucchy00/Polaris#readme",
+  "homepage": "https://github.com/OrbitQL-team/OrbitQL#readme",
   "devDependencies": {
     "@aws-sdk/client-rds-data": "^3.1034.0",
     "@electric-sql/pglite": "^0.4.4",
