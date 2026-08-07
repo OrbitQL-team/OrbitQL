@@ -1,0 +1,102 @@
+{
+  "name": "@orbitql/core",
+  "version": "0.0.1",
+  "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
+  "type": "module",
+
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "test": "node tests/runner/test-runner.mjs",
+    "prepublishOnly": "npm run build"
+  },
+
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OrbitQL-team/OrbitQL.git"
+  },
+
+  "keywords": [
+    "api",
+    "backend",
+    "query-engine",
+    "data-api",
+    "api-builder",
+    "declarative-api",
+    "query-builder",
+    "aggregation",
+    "group-by",
+    "joins",
+    "filtering",
+    "analytics",
+    "reporting",
+    "typescript",
+    "nodejs",
+    "dsl",
+    "data-platform",
+    "headless-api",
+    "drizzle",
+    "drizzle-orm",
+    "pg",
+		"mysql",
+		"singlestore",
+		"postgresql",
+		"postgres",
+		"sqlite",
+		"database",
+		"sql",
+		"typescript",
+		"ts",
+    "orbit",
+    "orbitql"
+  ],
+
+  "author": "OrbitQL team",
+  "license": "MIT",
+
+  "bugs": {
+    "url": "https://github.com/OrbitQL-team/OrbitQL/issues"
+  },
+
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+
+  "homepage": "https://github.com/OrbitQL-team/OrbitQL#readme",
+
+  "dependencies": {
+    "drizzle-orm": "^1.0.0-beta.22"
+  },
+
+  "devDependencies": {
+    "@aws-sdk/client-rds-data": "^3.1034.0",
+    "@electric-sql/pglite": "^0.4.4",
+    "@libsql/client": "^0.17.2",
+    "@neondatabase/serverless": "^1.1.0",
+    "@types/node": "^25.5.0",
+    "@types/prompts": "^2.4.9",
+    "@vercel/postgres": "^0.10.0",
+    "better-sqlite3": "^12.9.0",
+    "mssql": "^11.0.1",
+    "mysql2": "^3.22.2",
+    "pg": "^8.20.0",
+    "postgres": "^3.4.9",
+    "prompts": "^2.4.2",
+    "drizzle-kit": "^1.0.0-beta.22",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.2"
+  }
+}
