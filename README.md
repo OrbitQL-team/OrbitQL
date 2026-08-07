@@ -20,7 +20,7 @@ Install OrbitQL using npm:
 
 ```bash
 npm install @orbitql/core
----
+```
 
 ## 🪐 Why OrbitQL?
 
