@@ -14,6 +14,12 @@ Instead of scattering authorization checks across controllers, services, and que
 
 </div>
 
+## 🚀 Get Started
+
+Install OrbitQL using npm:
+
+```bash
+npm install @orbitql/core
 ---
 
 ## 🪐 Why OrbitQL?
