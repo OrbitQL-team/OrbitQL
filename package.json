@@ -1,6 +1,6 @@
 {
   "name": "@orbitql/core",
-  "version": "0.0.1",
+  "version": "0.9.0",
   "description": "A flexible backend API engine for building structured queries, joins, aggregations, and conditional logic using a declarative configuration model. Designed as a lightweight alternative to GraphQL, it enables controlled data access, dynamic grouping, and analytics-ready responses.",
   "type": "module",
 
